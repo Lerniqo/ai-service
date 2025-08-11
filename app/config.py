@@ -1,5 +1,6 @@
 from functools import lru_cache
 import os
+from typing import Optional
 from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -24,6 +25,12 @@ class Settings(BaseSettings):
     HOST: str = Field(default="127.0.0.1", env="HOST")
     PORT: int = Field(default=8000, env="PORT")
     RELOAD: bool = Field(default=False, env="RELOAD")  # Typically True only in development .env
+
+    # Service client configuration
+    CONTENT_SERVICE_BASE_URL: Optional[str] = Field(default=None, env="CONTENT_SERVICE_BASE_URL")
+    CONTENT_SERVICE_SECRET: Optional[str] = Field(default=None, env="CONTENT_SERVICE_SECRET")
+    PROGRESS_SERVICE_BASE_URL: Optional[str] = Field(default=None, env="PROGRESS_SERVICE_BASE_URL")
+    PROGRESS_SERVICE_SECRET: Optional[str] = Field(default=None, env="PROGRESS_SERVICE_SECRET")
 
     @property
     def is_development(self) -> bool:
