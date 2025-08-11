@@ -4,7 +4,7 @@
 # make start-test
 # make start-prod
 
-PYTHON=venv/bin/python
+PYTHON=python
 MODULE=run.py
 
 export ENV?=development
