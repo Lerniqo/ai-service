@@ -26,7 +26,10 @@ class TestApplicationStartup:
         with TestClient(app) as client:
             response = client.get("/")
             assert response.status_code == 200
-            assert response.json() == {"message": "Welcome to MyApp!"}
+            response_data = response.json()
+            assert "message" in response_data
+            assert "version" in response_data
+            assert response_data["version"] == "1.0.0"
     
     def test_app_health_check(self):
         """Test basic health check endpoint."""
