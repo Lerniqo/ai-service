@@ -4,7 +4,7 @@
 # make start-test
 # make start-prod
 
-PYTHON=python
+PYTHON=venv/bin/python
 MODULE=run.py
 
 export ENV?=development
@@ -17,3 +17,16 @@ start-test:
 
 start-prod:
 	ENV=production $(PYTHON) $(MODULE)
+
+run-tests:
+	$(PYTHON) -m pytest
+
+run-tests-verbose:
+	$(PYTHON) -m pytest -v
+
+run-tests-clients:
+	$(PYTHON) -m pytest tests/clients/ -v
+
+# Install coverage with: pip install pytest-cov
+# run-tests-coverage:
+#	$(PYTHON) -m pytest --cov=app --cov-report=html --cov-report=term

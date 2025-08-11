@@ -10,7 +10,6 @@ Features:
 from __future__ import annotations
 
 from typing import Any, Optional
-import os
 import httpx
 
 class ServiceClientError(RuntimeError):
@@ -39,10 +38,15 @@ class BaseClient:
         timeout: float = 10.0,
         client: Optional[httpx.AsyncClient] = None,
     ) -> None:
+        # Use centralized settings instead of direct os.getenv
         if base_url is None and self.BASE_URL_ENV:
-            base_url = os.getenv(self.BASE_URL_ENV)
+            from app.config import get_settings
+            settings = get_settings()
+            base_url = getattr(settings, self.BASE_URL_ENV, None)
         if secret is None and self.SECRET_ENV:
-            secret = os.getenv(self.SECRET_ENV)
+            from app.config import get_settings
+            settings = get_settings()
+            secret = getattr(settings, self.SECRET_ENV, None)
 
         if not base_url:
             raise ValueError("base_url is required (argument or environment variable)")
