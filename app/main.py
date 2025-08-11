@@ -2,8 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.api.health import router as health_router
-from app.logging_config import configure_logging
-from app.exception_handlers import http_exception_handler, general_exception_handler
+from app.core import configure_logging, http_exception_handler, general_exception_handler
 
 settings = get_settings()
 
