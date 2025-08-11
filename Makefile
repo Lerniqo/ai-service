@@ -27,6 +27,15 @@ run-tests-verbose:
 run-tests-clients:
 	$(PYTHON) -m pytest tests/clients/ -v
 
+run-tests-e2e:
+	$(PYTHON) -m pytest tests/test_e2e.py -v
+
+run-tests-unit:
+	$(PYTHON) -m pytest tests/clients/ -v
+
+run-tests-all:
+	$(PYTHON) -m pytest -v
+
 # Install coverage with: pip install pytest-cov
 # run-tests-coverage:
 #	$(PYTHON) -m pytest --cov=app --cov-report=html --cov-report=term
