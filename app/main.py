@@ -8,10 +8,12 @@ from app.consumers.event_consumer import create_event_consumer
 
 settings = get_settings()
 
-# Configure structured JSON logging
+# Configure logging with enhanced formatting
+# Use colorized console logging for development, JSON for production
 logger = configure_logging(
     service_name="ai-service",
-    log_level="INFO" if settings.is_production else "DEBUG"
+    log_level="INFO" if settings.is_production else "DEBUG",
+    format_type="json" if settings.is_production else "console"
 )
 
 app = FastAPI(
