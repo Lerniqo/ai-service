@@ -67,8 +67,6 @@ class KafkaClient:
             "client_id": client_id,
             "compression_type": "gzip",
             "acks": "all",
-            "retries": 3,
-            "max_in_flight_requests_per_connection": 5,
             **(producer_config or {})
         }
         

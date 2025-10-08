@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     # Kafka configuration
     KAFKA_BOOTSTRAP_SERVERS: str = Field(default="localhost:9092", env="KAFKA_BOOTSTRAP_SERVERS")
     KAFKA_CLIENT_ID: str = Field(default="ai-service", env="KAFKA_CLIENT_ID")
+    KAFKA_CONSUMER_GROUP_ID: str = Field(default="ai-service-events-consumer", env="KAFKA_CONSUMER_GROUP_ID")
+    KAFKA_EVENTS_TOPIC: str = Field(default="events", env="KAFKA_EVENTS_TOPIC")
 
     @property
     def is_development(self) -> bool:
