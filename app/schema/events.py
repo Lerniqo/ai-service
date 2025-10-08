@@ -2,7 +2,7 @@
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.schema.event_data import EventDataBase, QuizAttemptData
+from app.schema.event_data import EventDataBase, QuizAttemptData, VideoWatchData
 
 
 class Event(BaseModel):
@@ -93,6 +93,43 @@ class QuizAttemptEvent(Event):
                 "userId": "user_456",
                 "metadata": {
                     "source": "web_app"
+                }
+            }
+        }
+    )
+
+
+class VideoWatchEvent(Event):
+    """Specific event schema for video watch events."""
+    eventData: VideoWatchData = Field(
+        ...,
+        description="Video watch specific data"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "eventId": "evt_987654321",
+                "eventType": "VIDEO_WATCH",
+                "eventData": {
+                    "created_at": "2025-10-08T10:00:00Z",
+                    "updated_at": "2025-10-08T10:00:00Z",
+                    "userId": "test-user-456",
+                    "videoId": "video-789",
+                    "courseId": "course-123",
+                    "watchDuration": 120,
+                    "totalDuration": 300,
+                    "completed": False,
+                    "watchPercentage": 40
+                },
+                "userId": "test-user-456",
+                "metadata": {
+                    "userAgent": "Mozilla/5.0 (Chrome/91.0)",
+                    "sessionId": "session-456",
+                    "playbackSpeed": 1,
+                    "quality": "720p"
                 }
             }
         }

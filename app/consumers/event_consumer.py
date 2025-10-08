@@ -75,8 +75,8 @@ class EventConsumer:
                     self.logger,
                     "info",
                     "Event validated successfully",
-                    event_type=validated_event.event_type,
-                    user_id=validated_event.user_id,
+                    event_type=validated_event.eventType,
+                    user_id=validated_event.userId,
                     offset=message.offset
                 )
                 
@@ -119,9 +119,9 @@ class EventConsumer:
         print("\n" + "="*80)
         print("📨 INCOMING EVENT")
         print("="*80)
-        print(f"Event Type: {event.event_type}")
-        print(f"User ID: {event.user_id}")
-        print(f"Event Data: {event.event_data.model_dump()}")
+        print(f"Event Type: {event.eventType}")
+        print(f"User ID: {event.userId}")
+        print(f"Event Data: {event.eventData.model_dump()}")
         if event.metadata:
             print(f"Metadata: {event.metadata}")
         print("="*80 + "\n")
@@ -130,8 +130,8 @@ class EventConsumer:
             self.logger,
             "info",
             "Event processed successfully",
-            event_type=event.event_type,
-            user_id=event.user_id
+            event_type=event.eventType,
+            user_id=event.userId
         )
 
 
