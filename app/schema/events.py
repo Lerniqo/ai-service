@@ -1,5 +1,6 @@
 """Event schemas for the AI service."""
 from typing import Optional, Dict, Any
+from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schema.event_data import EventDataBase, QuizAttemptData, VideoWatchData
@@ -7,38 +8,43 @@ from app.schema.event_data import EventDataBase, QuizAttemptData, VideoWatchData
 
 class Event(BaseModel):
     """Base event schema that wraps all event types."""
-    eventId: str = Field(..., description="Unique identifier for the event")
-    eventType: str = Field(..., description="Type of the event")
-    eventData: EventDataBase = Field(
+    event_id: str = Field(
+        default_factory=lambda: f"evt_{uuid4().hex}",
+        alias="eventId",
+        description="Unique identifier for the event"
+    )
+    event_type: str = Field(..., alias="eventType", description="Type of the event")
+    event_data: EventDataBase = Field(
         ...,
+        alias="eventData",
         description="Event-specific data payload"
     )
-    userId: str = Field(..., description="ID of the user associated with the event")
+    user_id: str = Field(..., alias="userId", description="ID of the user associated with the event")
     metadata: Optional[Dict[str, Any]] = Field(
         None,
         description="Optional metadata for the event"
     )
 
-    @field_validator('eventId')
+    @field_validator('event_id')
     @classmethod
     def validate_event_id(cls, v: str) -> str:
-        """Validate that eventId is not empty."""
+        """Validate that event_id is not empty."""
         if not v or not v.strip():
             raise ValueError("Event ID cannot be empty")
         return v
 
-    @field_validator('eventType')
+    @field_validator('event_type')
     @classmethod
     def validate_event_type(cls, v: str) -> str:
-        """Validate that eventType is not empty."""
+        """Validate that event_type is not empty."""
         if not v or not v.strip():
             raise ValueError("Event type cannot be empty")
         return v
 
-    @field_validator('userId')
+    @field_validator('user_id')
     @classmethod
     def validate_user_id(cls, v: str) -> str:
-        """Validate that userId is not empty."""
+        """Validate that user_id is not empty."""
         if not v or not v.strip():
             raise ValueError("User ID cannot be empty")
         return v
@@ -70,8 +76,9 @@ class Event(BaseModel):
 
 class QuizAttemptEvent(Event):
     """Specific event schema for quiz attempts."""
-    eventData: QuizAttemptData = Field(
+    event_data: QuizAttemptData = Field(
         ...,
+        alias="eventData",
         description="Quiz attempt specific data"
     )
 
@@ -101,8 +108,9 @@ class QuizAttemptEvent(Event):
 
 class VideoWatchEvent(Event):
     """Specific event schema for video watch events."""
-    eventData: VideoWatchData = Field(
+    event_data: VideoWatchData = Field(
         ...,
+        alias="eventData",
         description="Video watch specific data"
     )
 
