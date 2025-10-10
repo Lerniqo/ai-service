@@ -10,7 +10,7 @@ import sys
 import os
 import logging
 import uvicorn
-from app.sagemaker.inference import sagemaker_app
+from app.main import app as fastapi_app
 
 # Set up logging
 logging.basicConfig(
@@ -38,9 +38,9 @@ def start_server():
         
         logger.info(f"Server will listen on {host}:{port}")
         
-        # Start the FastAPI application with uvicorn
+        # Start the unified FastAPI application with uvicorn
         uvicorn.run(
-            sagemaker_app,
+            fastapi_app,
             host=host,
             port=port,
             log_level="info",

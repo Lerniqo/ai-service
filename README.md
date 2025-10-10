@@ -6,7 +6,7 @@ FastAPI service with AWS SageMaker deployment via GitHub Actions CI/CD.
 - ✅ Multi-environment configuration (development, testing, production)
 - ✅ AWS SageMaker BYOC (Bring Your Own Container) ready
 - ✅ GitHub Actions CI/CD pipeline
-- ✅ SageMaker-compatible inference endpoints (`/ping`, `/invocations`)
+- ✅ SageMaker-compatible inference endpoints (`/ping`, `/invocations`) served by the core FastAPI app
 - ✅ Kafka event consumer for real-time processing
 - ✅ Automated deployment to AWS
 
@@ -27,9 +27,10 @@ FastAPI service with AWS SageMaker deployment via GitHub Actions CI/CD.
 │   ├── main.py                # FastAPI application instance
 │   ├── sagemaker/
 │   │   ├── __init__.py
-│   │   └── inference.py       # SageMaker inference handlers
+│   │   └── inference.py       # Backwards-compatible re-export of the FastAPI app
 │   ├── api/
-│   │   └── health.py          # Health check endpoints
+│   │   ├── health.py          # Health check endpoints
+│   │   └── inference.py       # Unified inference routes (`/ping`, `/invocations`, `/api/ai-service/predict`)
 │   ├── clients/               # Service clients (Kafka, HTTP)
 │   ├── consumers/             # Kafka event consumers
 │   ├── core/                  # Core utilities (logging, exceptions)
@@ -38,14 +39,6 @@ FastAPI service with AWS SageMaker deployment via GitHub Actions CI/CD.
 ├── train                      # SageMaker training entry point
 ├── run.py                     # Local development entrypoint
 ├── Dockerfile                 # Production SageMaker container
-├── Dockerfile.sagemaker-lite  # Lightweight SageMaker container
-├── nginx.conf                 # Nginx configuration for production
-├── deploy_sagemaker.py        # Automated SageMaker deployment
-├── scripts/
-│   ├── build.sh               # Build Docker image
-│   ├── test_local.sh          # Test container locally
-│   ├── push_ecr.sh            # Push to Amazon ECR
-│   └── cleanup.sh             # Clean up Docker resources
 ├── sample_events/             # Sample event payloads for testing
 ├── .env.development           # Env vars for development
 ├── .env.testing               # Env vars for testing
@@ -174,7 +167,8 @@ Triggered on push to `main` or `production`:
 The deployed service exposes:
 
 - **`/ping`** - Health check (GET)
-- **`/invocations`** - Inference endpoint (POST)
+- **`/invocations`** - Inference endpoint (POST, SageMaker runtime)
+- **`/api/ai-service/predict`** - API Gateway friendly alias (POST)
 
 ## Using the Deployed Endpoint
 
