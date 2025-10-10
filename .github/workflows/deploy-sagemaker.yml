@@ -77,7 +77,7 @@ jobs:
           
           # Create new endpoint configuration
           CONFIG_NAME="${PROJECT_NAME}-${ENVIRONMENT}-ai-service-config-$(date +%s)"
-          aws sagemaker create-endpoint-configuration \
+          aws sagemaker create-endpoint-config \
             --endpoint-config-name $CONFIG_NAME \
             --production-variants "VariantName=AllTraffic,ModelName=$MODEL_NAME,InitialInstanceCount=1,InstanceType=ml.m5.large,InitialVariantWeight=1.0" \
             --region $AWS_REGION
@@ -127,11 +127,11 @@ jobs:
         xargs -r -n1 aws sagemaker delete-model --model-name --region $AWS_REGION || true
         
         # Keep only the latest 5 endpoint configurations
-        aws sagemaker list-endpoint-configurations \
+        aws sagemaker list-endpoint-configs \
           --name-contains "${PROJECT_NAME}-${ENVIRONMENT}-ai-service-config" \
           --region $AWS_REGION \
-          --query 'EndpointConfigurations[5:].EndpointConfigName' \
+          --query 'EndpointConfigs[5:].EndpointConfigName' \
           --output text | \
-        xargs -r -n1 aws sagemaker delete-endpoint-configuration --endpoint-config-name --region $AWS_REGION || true
+        xargs -r -n1 aws sagemaker delete-endpoint-config --endpoint-config-name --region $AWS_REGION || true
         
         echo "Cleanup completed"
