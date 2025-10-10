@@ -1,0 +1,108 @@
+# Docker ignore file for SageMaker BYOC
+# Exclude unnecessary files from the Docker image
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation (build artifacts)
+docs/_build/
+*.md
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Deployment artifacts
+deployment_info.json
+*.pem
+*.key
+
+# Scripts (not needed in container)
+scripts/
+Makefile
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# Docker files (not needed in the image)
+Dockerfile*
+.dockerignore
+docker-compose.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Kubernetes
+k8s/
+*.yaml
+*.yml
+!requirements.yml
+
+# Terraform
+*.tf
+*.tfstate
+*.tfvars
+.terraform/
+
+# SageMaker deployment script (not needed in container)
+deploy_sagemaker.py

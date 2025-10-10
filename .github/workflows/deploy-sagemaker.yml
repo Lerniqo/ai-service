@@ -1,0 +1,188 @@
+name: Deploy to AWS SageMaker
+
+on:
+  push:
+    branches:
+      - main
+      - production
+  workflow_dispatch:
+    inputs:
+      instance_type:
+        description: 'SageMaker instance type'
+        required: false
+        default: 'ml.t2.medium'
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: ai-service-sagemaker
+  SAGEMAKER_MODEL_NAME: ai-service-model
+  SAGEMAKER_ENDPOINT_NAME: ai-service-endpoint
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          python -m pytest tests/ -v
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/production'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Create ECR repository if not exists
+        continue-on-error: true
+        run: |
+          aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY }} || \
+          aws ecr create-repository \
+            --repository-name ${{ env.ECR_REPOSITORY }} \
+            --image-scanning-configuration scanOnPush=true \
+            --encryption-configuration encryptionType=AES256
+
+      - name: Build Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ACCOUNT_ID: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          ACCOUNT_ID=$(echo ${{ steps.login-ecr.outputs.registry }} | cut -d'.' -f1)
+          IMAGE_NAME=${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG=${{ github.sha }}
+          REGION=${{ env.AWS_REGION }}
+          
+          docker build -t $IMAGE_NAME:$IMAGE_TAG .
+          docker tag $IMAGE_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:latest
+          docker tag $IMAGE_NAME:$IMAGE_TAG $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:$IMAGE_TAG
+
+      - name: Test Docker image locally
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          ACCOUNT_ID=$(echo ${{ steps.login-ecr.outputs.registry }} | cut -d'.' -f1)
+          IMAGE_NAME=${{ env.ECR_REPOSITORY }}
+          REGION=${{ env.AWS_REGION }}
+          
+          docker run -d --name test-container -p 8080:8080 \
+            $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:latest
+          sleep 10
+          
+          # Test health endpoint
+          curl -f http://localhost:8080/ping || exit 1
+          
+          echo "✓ Health check passed"
+          
+          docker stop test-container
+          docker rm test-container
+
+      - name: Push image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          ACCOUNT_ID=$(echo ${{ steps.login-ecr.outputs.registry }} | cut -d'.' -f1)
+          IMAGE_NAME=${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG=${{ github.sha }}
+          REGION=${{ env.AWS_REGION }}
+          
+          docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:latest
+          docker push $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:$IMAGE_TAG
+          
+          echo "IMAGE_URI=$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:latest" >> $GITHUB_ENV
+
+      - name: Get SageMaker execution role ARN
+        run: |
+          SAGEMAKER_ROLE_ARN=$(aws iam get-role --role-name SageMakerExecutionRole --query 'Role.Arn' --output text)
+          echo "SAGEMAKER_ROLE_ARN=$SAGEMAKER_ROLE_ARN" >> $GITHUB_ENV
+          echo "Using SageMaker role: $SAGEMAKER_ROLE_ARN"
+
+      - name: Create or update SageMaker model
+        run: |
+          # Try to create model, delete and recreate if exists
+          aws sagemaker delete-model --model-name ${{ env.SAGEMAKER_MODEL_NAME }} 2>/dev/null || true
+          
+          aws sagemaker create-model \
+            --model-name ${{ env.SAGEMAKER_MODEL_NAME }} \
+            --primary-container "Image=${{ env.IMAGE_URI }},Mode=SingleModel,Environment={SAGEMAKER_PROGRAM=serve,SAGEMAKER_SUBMIT_DIRECTORY=/opt/ml/code}" \
+            --execution-role-arn ${{ env.SAGEMAKER_ROLE_ARN }}
+
+      - name: Create endpoint configuration
+        env:
+          INSTANCE_TYPE: ${{ github.event.inputs.instance_type || 'ml.t2.medium' }}
+        run: |
+          CONFIG_NAME="${{ env.SAGEMAKER_MODEL_NAME }}-config-$(date +%Y%m%d-%H%M%S)"
+          
+          aws sagemaker create-endpoint-config \
+            --endpoint-config-name $CONFIG_NAME \
+            --production-variants "VariantName=AllTraffic,ModelName=${{ env.SAGEMAKER_MODEL_NAME }},InitialInstanceCount=1,InstanceType=${{ env.INSTANCE_TYPE }},InitialVariantWeight=1"
+          
+          echo "ENDPOINT_CONFIG_NAME=$CONFIG_NAME" >> $GITHUB_ENV
+
+      - name: Create or update SageMaker endpoint
+        run: |
+          # Check if endpoint exists
+          if aws sagemaker describe-endpoint --endpoint-name ${{ env.SAGEMAKER_ENDPOINT_NAME }} 2>/dev/null; then
+            echo "Updating existing endpoint..."
+            aws sagemaker update-endpoint \
+              --endpoint-name ${{ env.SAGEMAKER_ENDPOINT_NAME }} \
+              --endpoint-config-name ${{ env.ENDPOINT_CONFIG_NAME }}
+          else
+            echo "Creating new endpoint..."
+            aws sagemaker create-endpoint \
+              --endpoint-name ${{ env.SAGEMAKER_ENDPOINT_NAME }} \
+              --endpoint-config-name ${{ env.ENDPOINT_CONFIG_NAME }}
+          fi
+
+      - name: Wait for endpoint to be in service
+        run: |
+          echo "Waiting for endpoint to be ready (this may take 5-10 minutes)..."
+          aws sagemaker wait endpoint-in-service \
+            --endpoint-name ${{ env.SAGEMAKER_ENDPOINT_NAME }}
+          
+          echo "✓ Endpoint is now InService"
+
+      - name: Get endpoint details
+        run: |
+          aws sagemaker describe-endpoint \
+            --endpoint-name ${{ env.SAGEMAKER_ENDPOINT_NAME }} \
+            --query '{EndpointName:EndpointName,EndpointStatus:EndpointStatus,CreationTime:CreationTime,LastModifiedTime:LastModifiedTime}' \
+            --output table
+
+# Required GitHub Secrets:
+# - AWS_ACCESS_KEY_ID: Your AWS access key ID
+# - AWS_SECRET_ACCESS_KEY: Your AWS secret access key
+#
+# The SageMaker role ARN is fetched automatically from IAM role: SageMakerExecutionRole
+#
+# To create the SageMaker execution role:
+# aws iam create-role --role-name SageMakerExecutionRole \
+#   --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"sagemaker.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+# aws iam attach-role-policy --role-name SageMakerExecutionRole --policy-arn arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+# aws iam attach-role-policy --role-name SageMakerExecutionRole --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
