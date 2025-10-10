@@ -1,59 +1,108 @@
 # ai-service
 
-FastAPI service with multi-environment configuration (development, testing, production) using pydantic-settings and python-dotenv.
+FastAPI service with AWS SageMaker deployment via GitHub Actions CI/CD.
 
 ## Features
-- Environment-specific `.env.<environment>` files auto-loaded based on `ENV` variable
-- Centralized settings in `app/config.py`
-- Development hot-reload only in development
-- Simple Makefile commands for each environment
-- Strict settings management via Pydantic models
-- Easily extendable for databases / external services
+- ✅ Multi-environment configuration (development, testing, production)
+- ✅ AWS SageMaker BYOC (Bring Your Own Container) ready
+- ✅ GitHub Actions CI/CD pipeline
+- ✅ SageMaker-compatible inference endpoints (`/ping`, `/invocations`)
+- ✅ Kafka event consumer for real-time processing
+- ✅ Automated deployment to AWS
 
 ## Tech Stack
-- Python 3.13+
-- FastAPI / Starlette
-- Pydantic v2 / pydantic-settings
-- Uvicorn
-- python-dotenv
+- Python 3.11+
+- FastAPI / Uvicorn
+- Pydantic v2
+- AWS SageMaker SDK
+- Kafka (aiokafka)
+- Docker
 
 ## Project Structure
 ```
 .
-├── app
+├── app/
 │   ├── __init__.py
-│   ├── config.py          # Settings management & env loading
-│   └── main.py            # FastAPI application instance
-├── run.py                 # Entrypoint that starts uvicorn with settings
-├── Makefile               # Convenience commands per environment
-├── .env.development       # Env vars for development
-├── .env.testing           # Env vars for testing
-├── .env.production        # Env vars for production
-├── requirements.txt       # Locked dependencies (pip)
+│   ├── config.py              # Settings management & env loading
+│   ├── main.py                # FastAPI application instance
+│   ├── sagemaker/
+│   │   ├── __init__.py
+│   │   └── inference.py       # SageMaker inference handlers
+│   ├── api/
+│   │   └── health.py          # Health check endpoints
+│   ├── clients/               # Service clients (Kafka, HTTP)
+│   ├── consumers/             # Kafka event consumers
+│   ├── core/                  # Core utilities (logging, exceptions)
+│   └── schema/                # Pydantic schemas
+├── serve                      # SageMaker inference entry point
+├── train                      # SageMaker training entry point
+├── run.py                     # Local development entrypoint
+├── Dockerfile                 # Production SageMaker container
+├── Dockerfile.sagemaker-lite  # Lightweight SageMaker container
+├── nginx.conf                 # Nginx configuration for production
+├── deploy_sagemaker.py        # Automated SageMaker deployment
+├── scripts/
+│   ├── build.sh               # Build Docker image
+│   ├── test_local.sh          # Test container locally
+│   ├── push_ecr.sh            # Push to Amazon ECR
+│   └── cleanup.sh             # Clean up Docker resources
+├── sample_events/             # Sample event payloads for testing
+├── .env.development           # Env vars for development
+├── .env.testing               # Env vars for testing
+├── .env.production            # Env vars for production
+├── requirements.txt           # Python dependencies
+├── SAGEMAKER_DEPLOYMENT.md    # Detailed SageMaker deployment guide
 └── README.md
 ```
 
 ## Prerequisites
-- Python 3.13 (adjust if needed)
+- Python 3.11+ (recommended for SageMaker compatibility)
 - pip
+- Docker (for SageMaker deployment)
+- AWS CLI (for SageMaker deployment)
 - (Optional) A virtual environment tool: `venv`, `pyenv`, or `uv`
 
-## Setup
+## Quick Start
+
+### Local Development
+
 ```bash
 # 1. Clone repository
 git clone <repo-url>
 cd ai-service
 
-# 2. Create & activate virtual environment (example with venv)
+# 2. Create & activate virtual environment
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
 
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Pick / review environment file
+# 4. Configure environment
 cp .env.development .env.development.local  # (optional) override pattern
+
+# 5. Start the service
+make start-dev
+# or
+ENV=development python run.py
 ```
+
+### SageMaker Deployment (BYOC)
+
+```bash
+# 1. Build the Docker container
+./scripts/build.sh
+
+# 2. Test locally
+./scripts/test_local.sh
+
+# 3. Deploy to AWS SageMaker
+python deploy_sagemaker.py \
+  --region us-east-1 \
+  --role-arn arn:aws:iam::YOUR_ACCOUNT_ID:role/SageMakerExecutionRole
+```
+
+For detailed SageMaker deployment instructions, see [SAGEMAKER_DEPLOYMENT.md](SAGEMAKER_DEPLOYMENT.md).
 
 ## Environment Selection
 The active environment is determined by the `ENV` variable (defaults to `development`). The loader reads `.env.<ENV>`.
@@ -87,37 +136,110 @@ ENV=testing python run.py
 ENV=production python run.py
 ```
 
-## API Quick Test
-After starting (default dev):
+## Deployment Architecture
+
+```
+┌──────────────────┐
+│  GitHub Repo     │
+│  (main branch)   │
+└────────┬─────────┘
+         │ git push
+         ▼
+┌──────────────────┐
+│ GitHub Actions   │
+│ - Run tests      │
+│ - Build Docker   │
+│ - Push to ECR    │
+│ - Deploy SageMaker│
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────┐     ┌──────────────────┐
+│   Amazon ECR     │────→│  AWS SageMaker   │
+│  (Docker Image)  │     │    Endpoint      │
+└──────────────────┘     └──────────────────┘
+```
+
+### CI/CD Pipeline
+
+Triggered on push to `main` or `production`:
+1. ✅ Run tests
+2. ✅ Build Docker image  
+3. ✅ Push to Amazon ECR
+4. ✅ Deploy to SageMaker
+5. ✅ Endpoint ready (~5-10 min)
+
+## SageMaker Endpoints
+
+The deployed service exposes:
+
+- **`/ping`** - Health check (GET)
+- **`/invocations`** - Inference endpoint (POST)
+
+## Using the Deployed Endpoint
+
+```python
+import boto3
+import json
+
+runtime = boto3.client('sagemaker-runtime', region_name='us-east-1')
+
+response = runtime.invoke_endpoint(
+    EndpointName='ai-service-endpoint',
+    ContentType='application/json',
+    Body=json.dumps({
+        "eventType": "quiz_attempt",
+        "userId": "user_123",
+        "data": {
+            "quiz_id": "quiz_456",
+            "score": 85.5,
+            "concepts": ["algebra"],
+            "status": "completed"
+        }
+    })
+)
+
+result = json.loads(response['Body'].read().decode())
+print(result)
+```
+
+## Configuration
+
+### GitHub Secrets (Required)
+- `AWS_ACCESS_KEY_ID` - AWS access key
+- `AWS_SECRET_ACCESS_KEY` - AWS secret key
+- `SAGEMAKER_ROLE_ARN` - SageMaker execution role ARN
+
+### Environment Variables
+Edit `.github/workflows/deploy-sagemaker.yml`:
+```yaml
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: ai-service-sagemaker
+  SAGEMAKER_ENDPOINT_NAME: ai-service-endpoint
+```
+
+## Monitoring
+
 ```bash
-curl http://127.0.0.1:8000/
+# Check deployment status
+aws sagemaker describe-endpoint --endpoint-name ai-service-endpoint
+
+# View logs
+aws logs tail /aws/sagemaker/Endpoints/ai-service-endpoint --follow
 ```
-Expected JSON:
-```json
-{"message": "Welcome to MyApp!"}
-```
 
-## Extending Configuration
-1. Add a field to `Settings` in `app/config.py` with `Field(..., env="VARIABLE_NAME")`.
-2. Add the variable to your `.env.<environment>` files.
-3. Access via `from app.config import get_settings` then `settings.NEW_FIELD`.
+## Cost Optimization
 
-## Development Tips
-- Use `reload` only in development to avoid performance overhead.
-- Cache settings via `@lru_cache` (already implemented) to prevent re-parsing.
-- Keep secrets out of VCS: create `.env.*.local` variants and gitignore them.
+| Instance | $/hour | $/month (24/7) | Recommendation |
+|----------|--------|----------------|----------------|
+| ml.t2.medium | $0.065 | $47 | Dev/Test |
+| ml.m5.large | $0.134 | $97 | Production |
 
-## Deployment Notes
-- Set `HOST=0.0.0.0` and adjust `PORT`.
-- Use a process manager (e.g., `gunicorn` with `uvicorn.workers.UvicornWorker`) for production if scaling.
-- Ensure only production-safe dependencies are installed in the deploy image.
-
-Example gunicorn command:
-```bash
-gunicorn -k uvicorn.workers.UvicornWorker app.main:app -b 0.0.0.0:8000 --workers 4
-```
+**Tip**: Delete endpoint when not in use, redeploy with `git push` when needed (5-10 min).
 ## References
-- FastAPI Docs: https://fastapi.tiangolo.com/
-- Pydantic Settings: https://docs.pydantic.dev/latest/concepts/pydantic_settings/
-- Uvicorn: https://www.uvicorn.org/
+- [SageMaker Deployment Guide](SAGEMAKER_DEPLOYMENT.md)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [AWS SageMaker](https://docs.aws.amazon.com/sagemaker/)
+- [GitHub Actions](https://docs.github.com/en/actions)
 
