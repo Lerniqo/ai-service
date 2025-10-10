@@ -13,7 +13,7 @@ on:
         default: 'ml.t2.medium'
 
 env:
-  AWS_REGION: us-east-1
+  AWS_REGION: eu-north-1
   ECR_REPOSITORY: ai-service-sagemaker
   SAGEMAKER_MODEL_NAME: ai-service-model
   SAGEMAKER_ENDPOINT_NAME: ai-service-endpoint
