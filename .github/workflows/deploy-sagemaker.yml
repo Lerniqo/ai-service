@@ -10,7 +10,7 @@ on:
       instance_type:
         description: 'SageMaker instance type'
         required: false
-        default: 'ml.t2.medium'
+        default: 'ml.m5.large'
 
 env:
   AWS_REGION: eu-north-1
@@ -135,7 +135,7 @@ jobs:
 
       - name: Create endpoint configuration
         env:
-          INSTANCE_TYPE: ${{ github.event.inputs.instance_type || 'ml.t2.medium' }}
+          INSTANCE_TYPE: ${{ github.event.inputs.instance_type || 'ml.m5.large' }}
         run: |
           CONFIG_NAME="${{ env.SAGEMAKER_MODEL_NAME }}-config-$(date +%Y%m%d-%H%M%S)"
           
