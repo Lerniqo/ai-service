@@ -14,9 +14,9 @@ on:
 
 env:
   AWS_REGION: eu-north-1
-  ECR_REPOSITORY: ai-service-sagemaker
-  SAGEMAKER_MODEL_NAME: ai-service-model
-  SAGEMAKER_ENDPOINT_NAME: ai-service-endpoint
+  ECR_REPOSITORY: ai-service  # Matches Terraform ECR repository name
+  SAGEMAKER_MODEL_NAME: webapp-dev-ai-service-model  # Terraform-managed model name
+  SAGEMAKER_ENDPOINT_NAME: webapp-dev-ai-service-endpoint  # Terraform-managed endpoint name
   PYTHON_VERSION: '3.11'
 
 jobs:
@@ -117,67 +117,38 @@ jobs:
           
           echo "IMAGE_URI=$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$IMAGE_NAME:latest" >> $GITHUB_ENV
 
-      - name: Get SageMaker execution role ARN
+      - name: Trigger SageMaker model update (Terraform-managed)
         run: |
-          SAGEMAKER_ROLE_ARN=$(aws iam get-role --role-name SageMakerExecutionRole --query 'Role.Arn' --output text)
-          echo "SAGEMAKER_ROLE_ARN=$SAGEMAKER_ROLE_ARN" >> $GITHUB_ENV
-          echo "Using SageMaker role: $SAGEMAKER_ROLE_ARN"
-
-      - name: Create or update SageMaker model
-        run: |
-          # Try to create model, delete and recreate if exists
-          aws sagemaker delete-model --model-name ${{ env.SAGEMAKER_MODEL_NAME }} 2>/dev/null || true
+          echo "✓ Docker image pushed to ECR successfully"
+          echo "Image URI: ${{ env.IMAGE_URI }}"
+          echo ""
+          echo "⚠️  Note: SageMaker resources are managed by Terraform"
+          echo "To update the SageMaker endpoint with the new image:"
+          echo ""
+          echo "1. The Terraform configuration will automatically use the ':latest' tag"
+          echo "2. Run 'terraform apply' in the terraform-infra/environments/dev directory to update the model"
+          echo "3. Terraform will recreate the model and update the endpoint with the new image"
+          echo ""
+          echo "Resources managed by Terraform:"
+          echo "  - Model: ${{ env.SAGEMAKER_MODEL_NAME }}"
+          echo "  - Endpoint: ${{ env.SAGEMAKER_ENDPOINT_NAME }}"
+          echo "  - Region: ${{ env.AWS_REGION }}"
           
-          aws sagemaker create-model \
-            --model-name ${{ env.SAGEMAKER_MODEL_NAME }} \
-            --primary-container "Image=${{ env.IMAGE_URI }},Mode=SingleModel,Environment={SAGEMAKER_PROGRAM=serve,SAGEMAKER_SUBMIT_DIRECTORY=/opt/ml/code}" \
-            --execution-role-arn ${{ env.SAGEMAKER_ROLE_ARN }}
-
-      - name: Create endpoint configuration
-        env:
-          INSTANCE_TYPE: ${{ github.event.inputs.instance_type || 'ml.m5.large' }}
+      - name: Verify SageMaker endpoint status
         run: |
-          CONFIG_NAME="${{ env.SAGEMAKER_MODEL_NAME }}-config-$(date +%Y%m%d-%H%M%S)"
-          
-          aws sagemaker create-endpoint-config \
-            --endpoint-config-name $CONFIG_NAME \
-            --production-variants "VariantName=AllTraffic,ModelName=${{ env.SAGEMAKER_MODEL_NAME }},InitialInstanceCount=1,InstanceType=${{ env.INSTANCE_TYPE }},InitialVariantWeight=1"
-          
-          echo "ENDPOINT_CONFIG_NAME=$CONFIG_NAME" >> $GITHUB_ENV
-
-      - name: Create or update SageMaker endpoint
-        run: |
-          # Check if endpoint exists
-          if aws sagemaker describe-endpoint --endpoint-name ${{ env.SAGEMAKER_ENDPOINT_NAME }} 2>/dev/null; then
-            echo "Updating existing endpoint..."
-            aws sagemaker update-endpoint \
-              --endpoint-name ${{ env.SAGEMAKER_ENDPOINT_NAME }} \
-              --endpoint-config-name ${{ env.ENDPOINT_CONFIG_NAME }}
-          else
-            echo "Creating new endpoint..."
-            aws sagemaker create-endpoint \
-              --endpoint-name ${{ env.SAGEMAKER_ENDPOINT_NAME }} \
-              --endpoint-config-name ${{ env.ENDPOINT_CONFIG_NAME }}
-          fi
-
-      - name: Wait for endpoint to be in service
-        run: |
-          echo "Waiting for endpoint to be ready (this may take 5-10 minutes)..."
-          aws sagemaker wait endpoint-in-service \
-            --endpoint-name ${{ env.SAGEMAKER_ENDPOINT_NAME }}
-          
-          echo "✓ Endpoint is now InService"
-
-      - name: Get endpoint details
-        run: |
+          echo "Checking current SageMaker endpoint status..."
           aws sagemaker describe-endpoint \
             --endpoint-name ${{ env.SAGEMAKER_ENDPOINT_NAME }} \
             --query '{EndpointName:EndpointName,EndpointStatus:EndpointStatus,CreationTime:CreationTime,LastModifiedTime:LastModifiedTime}' \
-            --output table
+            --output table || echo "⚠️  Endpoint not found or not accessible"
 
 # Required GitHub Secrets:
 # - AWS_ACCESS_KEY_ID: Your AWS access key ID
 # - AWS_SECRET_ACCESS_KEY: Your AWS secret access key
+#
+# Note: SageMaker resources (model, endpoint config, endpoint) are managed by Terraform
+# This workflow only builds and pushes the Docker image to ECR
+# To update SageMaker with the new image, run 'terraform apply' in terraform-infra/environments/dev
 #
 # The SageMaker role ARN is fetched automatically from IAM role: SageMakerExecutionRole
 #
