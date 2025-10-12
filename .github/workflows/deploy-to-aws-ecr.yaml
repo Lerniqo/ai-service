@@ -1,5 +1,7 @@
 name: Build and Push AI Service to AWS ECR
-
+permissions:
+  contents: read
+  
 on:
   push:
     branches:
