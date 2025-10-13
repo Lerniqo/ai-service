@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.api.health import router as health_router
+from app.api.inference import router as inference_router
 from app.core import configure_logging, http_exception_handler, general_exception_handler
 from app.clients.kafka_client import KafkaClient
 from app.consumers.event_consumer import create_event_consumer
@@ -17,9 +18,8 @@ logger = configure_logging(
     format_type="json" if settings.is_production else "console"
 )
 
-progress = ProgressServiceClient()
-
-print(progress.get_student_interaction_history("devinda"))
+# progress = ProgressServiceClient()
+# print(progress.get_student_interaction_history("devinda"))
 
 app = FastAPI(
     title=settings.APP_NAME, 
@@ -48,6 +48,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health_router, prefix="/health", tags=["health"])
+app.include_router(inference_router, prefix="/inference", tags=["inference"])
 
 @app.on_event("startup")
 async def startup_event():

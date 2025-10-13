@@ -5,6 +5,13 @@ import numpy as np
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 import tensorflow as tf
 from tensorflow import keras
+import json
+import os
+
+# Load skill mapping from JSON file
+skill_mapping_path = os.path.join(os.path.dirname(__file__), 'artifacts', 'skill_mapping.json')
+with open(skill_mapping_path, 'r') as f:
+    skill_map = json.load(f)
 
 def get_positional_encoding(seq_len, d_model):
     """
@@ -398,7 +405,7 @@ def infer_knowledge(data):
         custom_objects=custom_objects
     )
 
-    df, skill_map, num_skills, skill_difficulty = preprocess_data(data)
+    df, _, _, _ = preprocess_data(data)
     X_cat, X_cont, y, seq_len = create_sequences(df)
     
     # Perform prediction
