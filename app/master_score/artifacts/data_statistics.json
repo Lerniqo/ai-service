@@ -1,0 +1,9 @@
+{
+    "num_skills": 102,
+    "max_sequence_length": 99,
+    "total_sequences": 10272,
+    "train_sequences": 6573,
+    "val_sequences": 1644,
+    "test_sequences": 2055,
+    "total_interactions": 942816
+}

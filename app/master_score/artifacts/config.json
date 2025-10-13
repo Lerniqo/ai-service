@@ -1,0 +1,14 @@
+{
+    "DATA_PATH": "data.csv",
+    "MAX_SEQ_LEN": 100,
+    "D_MODEL": 256,
+    "NUM_HEADS": 16,
+    "NUM_BLOCKS": 3,
+    "FF_DIM": 256,
+    "DROPOUT_RATE": 0.3,
+    "L2_REG": 0.0001,
+    "EPOCHS": 75,
+    "BATCH_SIZE": 128,
+    "TEST_SIZE": 0.2,
+    "RANDOM_STATE": 42
+}

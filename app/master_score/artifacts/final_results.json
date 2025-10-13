@@ -1,0 +1,16 @@
+{
+    "final_train_loss": 0.056199200451374054,
+    "final_train_accuracy": 0.001068035839125514,
+    "final_val_loss": 0.0415320061147213,
+    "final_val_accuracy": 0.0,
+    "best_val_loss": 0.0415320061147213,
+    "best_val_accuracy": 0.10510825365781784,
+    "test_loss": 0.04164877161383629,
+    "test_accuracy": 0.0,
+    "test_auc_roc": 0.8078659996762892,
+    "test_precision": 0.017992135695526632,
+    "test_recall": 0.9935897435897436,
+    "test_f1_score": 0.035344250146080065,
+    "total_epochs": 75,
+    "model_parameters": 1348582
+}

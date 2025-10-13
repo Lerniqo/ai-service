@@ -5,6 +5,7 @@ from app.api.health import router as health_router
 from app.core import configure_logging, http_exception_handler, general_exception_handler
 from app.clients.kafka_client import KafkaClient
 from app.consumers.event_consumer import create_event_consumer
+from app.clients.progress_service import ProgressServiceClient
 
 settings = get_settings()
 
@@ -15,6 +16,10 @@ logger = configure_logging(
     log_level="INFO" if settings.is_production else "DEBUG",
     format_type="json" if settings.is_production else "console"
 )
+
+progress = ProgressServiceClient()
+
+print(progress.get_student_interaction_history("devinda"))
 
 app = FastAPI(
     title=settings.APP_NAME, 
