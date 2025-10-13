@@ -12,6 +12,8 @@ from typing import Optional
 from aiokafka.structs import ConsumerRecord
 from pydantic import ValidationError
 
+from app.clients.progress_service import ProgressServiceClient
+from app.master_score.main import validate_interaction_data
 from app.schema.events import Event
 from app.core.logging import log_with_extra
 
@@ -116,23 +118,25 @@ class EventConsumer:
         Args:
             event: Validated Event object
         """
-        print("\n" + "="*80)
-        print("📨 INCOMING EVENT")
-        print("="*80)
-        print(f"Event Type: {event.event_type}")
-        print(f"User ID: {event.user_id}")
-        print(f"Event Data: {event.event_data.model_dump()}")
-        if event.metadata:
-            print(f"Metadata: {event.metadata}")
-        print("="*80 + "\n")
+        if event.event_type != "QUESTION_ATTEMPT":
+            log_with_extra(
+                self.logger,
+                "warning",
+                f"Unhandled event type: {event.event_type}",
+                event_type=event.event_type,
+                user_id=event.user_id
+            )
+            return
         
-        log_with_extra(
-            self.logger,
-            "info",
-            "Event processed successfully",
-            event_type=event.event_type,
-            user_id=event.user_id
-        )
+        userStats = await ProgressServiceClient().get_student_interaction_history(event.user_id)
+
+        print(f"User stats: {userStats}")
+        
+        
+
+
+
+        
 
 
 def create_event_consumer(logger: Optional[logging.Logger] = None) -> EventConsumer:
