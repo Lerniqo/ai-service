@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 import httpx
+from urllib.parse import urlparse
 
 class ServiceClientError(RuntimeError):
     """Raised when a downstream service returns a non-success response or network error."""
@@ -50,6 +51,19 @@ class BaseClient:
 
         if not base_url:
             raise ValueError("base_url is required (argument or environment variable)")
+
+        # Ensure base_url has a proper protocol
+        if not base_url.startswith(("http://", "https://")):
+            # Default to https:// for security, but you can adjust this based on your needs
+            base_url = f"https://{base_url}"
+
+        # Validate the URL structure
+        try:
+            parsed = urlparse(base_url)
+            if not all([parsed.scheme, parsed.netloc]):
+                raise ValueError(f"Invalid base_url format: {base_url}")
+        except Exception as e:
+            raise ValueError(f"Invalid base_url format: {base_url} - {e}")
 
         self._base_url = base_url.rstrip("/")
         self._secret = secret
