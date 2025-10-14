@@ -12,8 +12,9 @@ from typing import Optional
 from aiokafka.structs import ConsumerRecord
 from pydantic import ValidationError
 
+from app.clients.kafka_client import get_kafka_client
 from app.clients.progress_service import ProgressServiceClient
-from app.master_score.main import validate_interaction_data
+from app.master_score.main import get_mastery_scores, validate_interaction_data
 from app.schema.events import Event
 from app.core.logging import log_with_extra
 
@@ -131,8 +132,37 @@ class EventConsumer:
         
         userStats = await self.progress_client.get_student_interaction_history(event.user_id)
 
-        print(f"User stats: {userStats}")
+        input_data = []
+
+        for stat in userStats["stats"]["latestEvents"]:
+            item = {
+                "startTime": stat["eventData"]["startTime"],
+                "endTime": stat["eventData"]["endTime"],
+                "skill": stat["eventData"]["skill"],
+                "correct": stat["eventData"]["correct"],
+            }
+            input_data.append(item)
         
+        mastery_score = get_mastery_scores(input_data)
+
+        # Here you can use input_data for further processing
+        log_with_extra(
+            self.logger,
+            "info",
+            "Processed event data",
+            user_id=event.user_id,
+            mastery_score=mastery_score
+        )
+
+        kafka_client = get_kafka_client()
+
+        await kafka_client.send(
+            topic="mastery-scores",
+            value={
+                "user_id": event.user_id,
+                "mastery_score": mastery_score
+            }
+        )
         
 
 

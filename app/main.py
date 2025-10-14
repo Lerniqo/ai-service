@@ -4,7 +4,7 @@ from app.config import get_settings
 from app.api.health import router as health_router
 from app.api.inference import router as inference_router
 from app.core import configure_logging, http_exception_handler, general_exception_handler
-from app.clients.kafka_client import KafkaClient
+from app.clients.kafka_client import KafkaClient, get_kafka_client
 from app.consumers.event_consumer import create_event_consumer
 from app.clients.progress_service import ProgressServiceClient
 
@@ -60,8 +60,7 @@ async def startup_event():
     )
     
     try:
-        # Initialize Kafka client
-        kafka_client = KafkaClient(
+        kafka_client = get_kafka_client(
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
             client_id=settings.KAFKA_CLIENT_ID,
             logger=logger
