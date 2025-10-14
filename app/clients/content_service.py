@@ -19,3 +19,4 @@ class ContentServiceClient(BaseClient):
     async def get_concept_graph(self) -> Any:
         """Fetch the concept graph from the content service."""
         return await self._get("/concept-graph")
+    

@@ -12,6 +12,9 @@ from typing import Optional
 from aiokafka.structs import ConsumerRecord
 from pydantic import ValidationError
 
+from app.clients.kafka_client import get_kafka_client
+from app.clients.progress_service import ProgressServiceClient
+from app.master_score.main import get_mastery_scores, validate_interaction_data
 from app.schema.events import Event
 from app.core.logging import log_with_extra
 
@@ -32,10 +35,11 @@ class EventConsumer:
             logger: Logger instance for structured logging
         """
         self.logger = logger or logging.getLogger(__name__)
+        self.progress_client = ProgressServiceClient()
         log_with_extra(
             self.logger,
             "info",
-            "EventConsumer initialized"
+            "EventConsumer initialized with progress service client"
         )
 
     async def handle_event(self, message: ConsumerRecord) -> None:
@@ -116,23 +120,54 @@ class EventConsumer:
         Args:
             event: Validated Event object
         """
-        print("\n" + "="*80)
-        print("📨 INCOMING EVENT")
-        print("="*80)
-        print(f"Event Type: {event.event_type}")
-        print(f"User ID: {event.user_id}")
-        print(f"Event Data: {event.event_data.model_dump()}")
-        if event.metadata:
-            print(f"Metadata: {event.metadata}")
-        print("="*80 + "\n")
+        if event.event_type != "QUESTION_ATTEMPT":
+            log_with_extra(
+                self.logger,
+                "warning",
+                f"Unhandled event type: {event.event_type}",
+                event_type=event.event_type,
+                user_id=event.user_id
+            )
+            return
         
+        userStats = await self.progress_client.get_student_interaction_history(event.user_id)
+
+        input_data = []
+
+        for stat in userStats["stats"]["latestEvents"]:
+            item = {
+                "startTime": stat["eventData"]["startTime"],
+                "endTime": stat["eventData"]["endTime"],
+                "skill": stat["eventData"]["skill"],
+                "correct": stat["eventData"]["correct"],
+            }
+            input_data.append(item)
+        
+        mastery_score = get_mastery_scores(input_data)
+
+        # Here you can use input_data for further processing
         log_with_extra(
             self.logger,
             "info",
-            "Event processed successfully",
-            event_type=event.event_type,
-            user_id=event.user_id
+            "Processed event data",
+            user_id=event.user_id,
+            mastery_score=mastery_score
         )
+
+        kafka_client = get_kafka_client()
+
+        await kafka_client.send(
+            topic="mastery-scores",
+            value={
+                "user_id": event.user_id,
+                "mastery_score": mastery_score
+            }
+        )
+        
+
+
+
+        
 
 
 def create_event_consumer(logger: Optional[logging.Logger] = None) -> EventConsumer:

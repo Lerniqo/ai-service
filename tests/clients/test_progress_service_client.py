@@ -15,7 +15,8 @@ async def test_get_student_interaction_history_returns_data():
     student_id = "student123"
 
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == f"/students/{student_id}/interaction-history"
+        assert request.url.path == f"/events/user/{student_id}/stats"
+        assert str(request.url.params.get("eventType")) == "QUESTION_ATTEMPT"
         return httpx.Response(200, json={"studentId": student_id, "events": []})
 
     transport = httpx.MockTransport(handler)

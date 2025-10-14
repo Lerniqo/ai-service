@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 import httpx
+from urllib.parse import urlparse
 
 class ServiceClientError(RuntimeError):
     """Raised when a downstream service returns a non-success response or network error."""
@@ -42,7 +43,11 @@ class BaseClient:
         if base_url is None and self.BASE_URL_ENV:
             from app.config import get_settings
             settings = get_settings()
-            base_url = getattr(settings, self.BASE_URL_ENV, None)
+            # For progress service, try the internal URL first
+            if self.BASE_URL_ENV == "PROGRESS_SERVICE_BASE_URL":
+                base_url = settings.internal_progress_service_url
+            else:
+                base_url = getattr(settings, self.BASE_URL_ENV, None)
         if secret is None and self.SECRET_ENV:
             from app.config import get_settings
             settings = get_settings()
@@ -50,6 +55,19 @@ class BaseClient:
 
         if not base_url:
             raise ValueError("base_url is required (argument or environment variable)")
+
+        # Ensure base_url has a proper protocol
+        if not base_url.startswith(("http://", "https://")):
+            # Default to https:// for security, but you can adjust this based on your needs
+            base_url = f"https://{base_url}"
+
+        # Validate the URL structure
+        try:
+            parsed = urlparse(base_url)
+            if not all([parsed.scheme, parsed.netloc]):
+                raise ValueError(f"Invalid base_url format: {base_url}")
+        except Exception as e:
+            raise ValueError(f"Invalid base_url format: {base_url} - {e}")
 
         self._base_url = base_url.rstrip("/")
         self._secret = secret
@@ -83,11 +101,12 @@ class BaseClient:
     # ------------------------------------------------------------------
     # HTTP helpers
     # ------------------------------------------------------------------
-    async def _get(self, path: str, *, params: Optional[dict[str, Any]] = None) -> Any:
+    async def _get(self, path: str, *, headers: Optional[dict[str, str]] = None, params: Optional[dict[str, Any]] = None) -> Any:
         """Perform a GET request and return JSON body.
 
         Args:
             path: Either an absolute URL or path relative to base_url.
+            headers: Optional headers to include in the request.
             params: Optional query parameters.
         Raises:
             ServiceClientError on network issues or non-2xx status.
@@ -96,7 +115,7 @@ class BaseClient:
         # Allow absolute URLs (useful for redirects or full endpoints)
         url = path if path.startswith("http://") or path.startswith("https://") else path
         try:
-            resp = await client.get(url, params=params)
+            resp = await client.get(url, params=params, headers=headers)
         except httpx.RequestError as e:  # network / timeout
             raise ServiceClientError(f"Network error calling service: {e}") from e
 
