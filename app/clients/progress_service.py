@@ -30,6 +30,5 @@ class ProgressServiceClient(BaseClient):
     async def get_student_interaction_history(self, student_id: str) -> Any:
         """Fetch a student's interaction history."""
         params = {"eventType": "QUESTION_ATTEMPT"}
-        headers = {'Host': 'progress-service.webapp-dev.local'}
 
-        return await self._get(f"/events/user/{student_id}/stats", headers=headers, params=params)
+        return await self._get(f"/events/user/{student_id}/stats", params=params)
