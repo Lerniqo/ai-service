@@ -39,7 +39,9 @@ class Settings(BaseSettings):
         if self.PROGRESS_SERVICE_BASE_URL:
             return self.PROGRESS_SERVICE_BASE_URL
         # Fallback to service discovery URL when deployed in ECS
-        if self.is_production:
+        # Check for ECS environment by looking for INTERNAL_ALB_DNS env var
+        import os
+        if self.is_production or os.getenv("INTERNAL_ALB_DNS"):
             return "http://progress-service.webapp-dev.local:3000"
         return None
 
