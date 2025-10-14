@@ -97,11 +97,12 @@ class BaseClient:
     # ------------------------------------------------------------------
     # HTTP helpers
     # ------------------------------------------------------------------
-    async def _get(self, path: str, *, params: Optional[dict[str, Any]] = None) -> Any:
+    async def _get(self, path: str, *, headers: Optional[dict[str, str]] = None, params: Optional[dict[str, Any]] = None) -> Any:
         """Perform a GET request and return JSON body.
 
         Args:
             path: Either an absolute URL or path relative to base_url.
+            headers: Optional headers to include in the request.
             params: Optional query parameters.
         Raises:
             ServiceClientError on network issues or non-2xx status.
@@ -110,7 +111,7 @@ class BaseClient:
         # Allow absolute URLs (useful for redirects or full endpoints)
         url = path if path.startswith("http://") or path.startswith("https://") else path
         try:
-            resp = await client.get(url, params=params)
+            resp = await client.get(url, params=params, headers=headers)
         except httpx.RequestError as e:  # network / timeout
             raise ServiceClientError(f"Network error calling service: {e}") from e
 
