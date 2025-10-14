@@ -32,6 +32,17 @@ class Settings(BaseSettings):
     PROGRESS_SERVICE_BASE_URL: Optional[str] = Field(default=None, env="PROGRESS_SERVICE_BASE_URL")
     PROGRESS_SERVICE_SECRET: Optional[str] = Field(default=None, env="PROGRESS_SERVICE_SECRET")
 
+    # Fallback for internal service communication when deployed in ECS
+    @property
+    def internal_progress_service_url(self) -> Optional[str]:
+        """Get the internal progress service URL for ECS service discovery"""
+        if self.PROGRESS_SERVICE_BASE_URL:
+            return self.PROGRESS_SERVICE_BASE_URL
+        # Fallback to service discovery URL when deployed in ECS
+        if self.is_production:
+            return "http://progress-service.webapp-dev.local:3000"
+        return None
+
     # Kafka configuration
     KAFKA_BOOTSTRAP_SERVERS: str = Field(default="localhost:9092", env="KAFKA_BOOTSTRAP_SERVERS")
     KAFKA_CLIENT_ID: str = Field(default="ai-service", env="KAFKA_CLIENT_ID")

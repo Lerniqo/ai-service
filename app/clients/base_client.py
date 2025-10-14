@@ -43,7 +43,11 @@ class BaseClient:
         if base_url is None and self.BASE_URL_ENV:
             from app.config import get_settings
             settings = get_settings()
-            base_url = getattr(settings, self.BASE_URL_ENV, None)
+            # For progress service, try the internal URL first
+            if self.BASE_URL_ENV == "PROGRESS_SERVICE_BASE_URL":
+                base_url = settings.internal_progress_service_url
+            else:
+                base_url = getattr(settings, self.BASE_URL_ENV, None)
         if secret is None and self.SECRET_ENV:
             from app.config import get_settings
             settings = get_settings()

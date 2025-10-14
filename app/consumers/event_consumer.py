@@ -34,10 +34,11 @@ class EventConsumer:
             logger: Logger instance for structured logging
         """
         self.logger = logger or logging.getLogger(__name__)
+        self.progress_client = ProgressServiceClient()
         log_with_extra(
             self.logger,
             "info",
-            "EventConsumer initialized"
+            "EventConsumer initialized with progress service client"
         )
 
     async def handle_event(self, message: ConsumerRecord) -> None:
@@ -128,7 +129,7 @@ class EventConsumer:
             )
             return
         
-        userStats = await ProgressServiceClient().get_student_interaction_history(event.user_id)
+        userStats = await self.progress_client.get_student_interaction_history(event.user_id)
 
         print(f"User stats: {userStats}")
         
