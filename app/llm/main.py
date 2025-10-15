@@ -186,13 +186,15 @@ class LLMService:
     
     async def agenerate_learning_path(
         self,
+        user_id: str,
         goal: str,
         current_level: str = "beginner",
         preferences: Optional[Dict[str, Any]] = None,
         available_time: str = "flexible"
     ) -> LearningPath:
         """Async version of generate_learning_path."""
-        return await self.learning_path_agent.agenerate_learning_path(
+        return await self.learning_path_agent.generate_learning_path(
+            user_id=user_id,
             goal=goal,
             current_level=current_level,
             preferences=preferences,

@@ -15,6 +15,20 @@ from app.schema.event_data import (
 class LearningGoalData(EventDataBase):
     """Data structure for learning goal."""
     learning_goal: str = Field(..., alias="learningGoal", description="The learning goal or objective")
+    current_level: Optional[str] = Field(
+        default="beginner",
+        alias="currentLevel",
+        description="Current skill level (beginner, intermediate, advanced)"
+    )
+    preferences: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="User preferences for learning path generation"
+    )
+    available_time: Optional[str] = Field(
+        default="flexible",
+        alias="availableTime",
+        description="Available time for learning (e.g., '2 hours/day', 'weekends only')"
+    )
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -22,6 +36,9 @@ class LearningGoalData(EventDataBase):
         json_schema_extra={
             "example": {
                 "learningGoal": "Learn Python programming",
+                "currentLevel": "beginner",
+                "preferences": {"learning_style": "visual"},
+                "availableTime": "2 hours per day"
             }
         }
     )

@@ -35,6 +35,7 @@ class LoadKnowledgeBaseRequest(BaseModel):
 
 class LearningPathRequest(BaseModel):
     """Request to generate a learning path."""
+    user_id: str = Field(..., description="User ID")
     goal: str = Field(..., description="Learning goal or objective")
     current_level: str = Field(default="beginner", description="Current knowledge level")
     preferences: Optional[Dict[str, Any]] = Field(None, description="Learning preferences")
@@ -141,6 +142,7 @@ async def generate_learning_path(request: LearningPathRequest):
     try:
         llm_service = get_llm_service()
         learning_path = await llm_service.agenerate_learning_path(
+            user_id=request.user_id,
             goal=request.goal,
             current_level=request.current_level,
             preferences=request.preferences,

@@ -69,10 +69,16 @@ Your task is to generate a comprehensive, well-structured learning path that hel
 Consider the following when creating the learning path:
 1. Break down complex topics into manageable steps
 2. Order steps logically from foundational to advanced concepts
-3. Provide realistic time estimates
+3. Provide realistic time estimates based on available time
 4. Include diverse learning resources
 5. Ensure prerequisites are clear
-6. Consider the user's current mastery scores and available resources
+6. Consider the user's current skill level and mastery scores
+7. Adapt difficulty based on current level
+8. Account for time constraints when estimating durations
+
+Current Skill Level: {current_level}
+Available Time: {available_time}
+User Preferences: {preferences}
 
 User's Mastery Scores:
 {mastery_scores}
@@ -88,7 +94,7 @@ Use the following context from the knowledge base to inform your recommendations
 
 Learning Goal: {goal}
 
-Generate a detailed learning path that will help achieve this goal based on the user's current mastery and available resources.""")
+Generate a detailed learning path that will help achieve this goal based on the user's current level ({current_level}), available time ({available_time}), mastery scores, and available resources.""")
         ])
         
         logger.info("Learning Path Agent initialized")
@@ -103,6 +109,9 @@ Generate a detailed learning path that will help achieve this goal based on the 
         self,
         user_id: str,
         goal: str,
+        current_level: Optional[str] = "beginner",
+        preferences: Optional[Dict[str, Any]] = None,
+        available_time: Optional[str] = "flexible",
     ) -> LearningPath:
         """
         Generate a personalized learning path.
@@ -110,11 +119,14 @@ Generate a detailed learning path that will help achieve this goal based on the 
         Args:
             user_id: The user's unique identifier
             goal: The learning goal or objective
+            current_level: Current skill level (beginner, intermediate, advanced)
+            preferences: User preferences for learning path generation
+            available_time: Available time for learning
             
         Returns:
             LearningPath object with structured steps
         """
-        logger.info(f"Generating learning path for user {user_id}, goal: {goal}")
+        logger.info(f"Generating learning path for user {user_id}, goal: {goal}, level: {current_level}")
         
         # Fetch user's mastery scores and available resources from content service
         try:
@@ -136,7 +148,7 @@ Generate a detailed learning path that will help achieve this goal based on the 
             context = "No additional context available."
         
         # Format data for prompt
-        preferences_str =  "No specific preferences"
+        preferences_str = str(preferences) if preferences else "No specific preferences"
         mastery_scores_str = str(mastery_scores) if mastery_scores else "No mastery score data available"
         resources_str = str(available_resources) if available_resources else "No specific resources available"
         
@@ -145,6 +157,8 @@ Generate a detailed learning path that will help achieve this goal based on the 
             {
                 "user_id": RunnablePassthrough(),
                 "goal": lambda _: goal,
+                "current_level": lambda _: current_level or "beginner",
+                "available_time": lambda _: available_time or "flexible",
                 "preferences": lambda _: preferences_str,
                 "mastery_scores": lambda _: mastery_scores_str,
                 "available_resources": lambda _: resources_str,
