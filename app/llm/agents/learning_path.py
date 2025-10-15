@@ -19,6 +19,12 @@ from app.clients.kafka_client import get_kafka_client
 
 logger = logging.getLogger(__name__)
 
+# Rebuild Pydantic model to resolve forward references and prevent initialization errors
+try:
+    ChatGoogleGenerativeAI.model_rebuild()
+except Exception as e:
+    logger.debug(f"ChatGoogleGenerativeAI model_rebuild not needed or failed: {e}")
+
 
 # Output schema for learning path
 class LearningStep(BaseModel):

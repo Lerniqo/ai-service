@@ -35,12 +35,25 @@ class LearningGoalConsumer:
             logger: Logger instance for structured logging
         """
         self.logger = logger or logging.getLogger(__name__)
-        self.learning_path_agent = LearningPathAgent()
+        # Lazy initialization to avoid Pydantic model definition issues
+        self._learning_path_agent: Optional[LearningPathAgent] = None
         log_with_extra(
             self.logger,
             "info",
-            "LearningGoalConsumer initialized with LearningPathAgent"
+            "LearningGoalConsumer initialized (agent will be created on first use)"
         )
+    
+    @property
+    def learning_path_agent(self) -> LearningPathAgent:
+        """Get or create the learning path agent (lazy initialization)."""
+        if self._learning_path_agent is None:
+            self._learning_path_agent = LearningPathAgent()
+            log_with_extra(
+                self.logger,
+                "info",
+                "LearningPathAgent created"
+            )
+        return self._learning_path_agent
 
     async def handle_learning_goal(self, message: ConsumerRecord) -> None:
         """

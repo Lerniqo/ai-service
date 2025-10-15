@@ -18,6 +18,12 @@ from app.llm.rag import get_rag_service
 
 logger = logging.getLogger(__name__)
 
+# Rebuild Pydantic model to resolve forward references and prevent initialization errors
+try:
+    ChatGoogleGenerativeAI.model_rebuild()
+except Exception as e:
+    logger.debug(f"ChatGoogleGenerativeAI model_rebuild not needed or failed: {e}")
+
 
 # Output schema for chatbot response
 class ChatbotResponse(BaseModel):
