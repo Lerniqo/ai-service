@@ -22,6 +22,14 @@ def _ensure_langchain_loaded():
     """Lazy load langchain modules."""
     global ChatGoogleGenerativeAI, ChatPromptTemplate, PydanticOutputParser, RunnablePassthrough
     if ChatGoogleGenerativeAI is None:
+        # Import BaseCache first to resolve forward references
+        try:
+            from langchain.globals import set_llm_cache
+            from langchain_core.caches import BaseCache
+        except ImportError:
+            # Fallback for different langchain versions
+            pass
+        
         from langchain_google_genai import ChatGoogleGenerativeAI as _ChatGoogleGenerativeAI
         from langchain.prompts import ChatPromptTemplate as _ChatPromptTemplate
         from langchain.output_parsers import PydanticOutputParser as _PydanticOutputParser
@@ -34,7 +42,7 @@ def _ensure_langchain_loaded():
         
         # Rebuild Pydantic model to resolve forward references
         try:
-            ChatGoogleGenerativeAI.model_rebuild()
+            _ChatGoogleGenerativeAI.model_rebuild()
         except Exception as e:
             logger.debug(f"ChatGoogleGenerativeAI model_rebuild not needed or failed: {e}")
 
