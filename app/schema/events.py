@@ -3,7 +3,28 @@ from typing import Optional, Dict, Any
 from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.schema.event_data import EventDataBase, QuizAttemptData, VideoWatchData
+from app.schema.event_data import (
+    EventDataBase, 
+    QuizAttemptData, 
+    VideoWatchData,
+    QuestionGenerationRequestData,
+    QuestionGenerationResponseData
+)
+
+
+class LearningGoalData(EventDataBase):
+    """Data structure for learning goal."""
+    learning_goal: str = Field(..., alias="learningGoal", description="The learning goal or objective")
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "learningGoal": "Learn Python programming",
+            }
+        }
+    )
 
 
 class Event(BaseModel):
@@ -138,6 +159,102 @@ class VideoWatchEvent(Event):
                     "sessionId": "session-456",
                     "playbackSpeed": 1,
                     "quality": "720p"
+                }
+            }
+        }
+    )
+
+
+class LearningGoalEvent(Event):
+    """Specific event schema for learning goal submissions."""
+    event_data: LearningGoalData = Field(
+        ...,
+        alias="eventData",
+        description="Learning goal specific data"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "eventId": "evt_abc123def",
+                "eventType": "LEARNING_GOAL",
+                "eventData": {
+                    "learningGoal": "Learn Python programming",
+                },
+                "userId": "user_789",
+                "metadata": {
+                    "source": "web_app",
+                    "version": "1.0.0"
+                }
+            }
+        }
+    )
+
+
+class QuestionGenerationRequestEvent(Event):
+    """Event schema for question generation requests."""
+    event_data: QuestionGenerationRequestData = Field(
+        ...,
+        alias="eventData",
+        description="Question generation request data"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "eventId": "evt_qgen_request_123",
+                "eventType": "question.generation.request",
+                "eventData": {
+                    "request_id": "req-123",
+                    "topic": "Python Loops",
+                    "num_questions": 5,
+                    "question_types": ["multiple_choice"],
+                    "difficulty": "medium",
+                    "content_id": "content-456",
+                    "user_id": "user-789"
+                },
+                "userId": "content-service",
+                "metadata": {
+                    "source": "content-service",
+                    "version": "1.0.0"
+                }
+            }
+        }
+    )
+
+
+class QuestionGenerationResponseEvent(Event):
+    """Event schema for question generation responses."""
+    event_data: QuestionGenerationResponseData = Field(
+        ...,
+        alias="eventData",
+        description="Question generation response data"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "eventId": "evt_qgen_response_123",
+                "eventType": "question.generation.response",
+                "eventData": {
+                    "request_id": "req-123",
+                    "status": "completed",
+                    "topic": "Python Loops",
+                    "total_questions": 5,
+                    "questions": [],
+                    "content_id": "content-456",
+                    "user_id": "user-789"
+                },
+                "userId": "ai-service",
+                "metadata": {
+                    "source": "ai-service",
+                    "version": "1.0.0"
                 }
             }
         }

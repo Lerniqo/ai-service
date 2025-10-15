@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     KAFKA_CLIENT_ID: str = Field(default="ai-service", env="KAFKA_CLIENT_ID")
     KAFKA_CONSUMER_GROUP_ID: str = Field(default="ai-service-events-consumer", env="KAFKA_CONSUMER_GROUP_ID")
     KAFKA_EVENTS_TOPIC: str = Field(default="events", env="KAFKA_EVENTS_TOPIC")
+    KAFKA_QUESTION_REQUEST_TOPIC: str = Field(default="question.request", env="KAFKA_QUESTION_REQUEST_TOPIC")
+    KAFKA_QUESTION_RESPONSE_TOPIC: str = Field(default="question.response", env="KAFKA_QUESTION_RESPONSE_TOPIC")
 
     # LLM configuration (Google Gemini)
     GOOGLE_API_KEY: Optional[str] = Field(default=None, env="GOOGLE_API_KEY")

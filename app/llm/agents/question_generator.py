@@ -34,8 +34,7 @@ class Question(BaseModel):
     correct_answer: str = Field(description="The correct answer or key points")
     explanation: str = Field(description="Explanation of the correct answer")
     difficulty: str = Field(description="Difficulty level: easy, medium, hard")
-    topic: str = Field(description="Topic or concept being tested")
-    bloom_level: str = Field(description="Bloom's taxonomy level: remember, understand, apply, analyze, evaluate, create")
+    concepts: List[str] = Field(description="Concepts being tested")
 
 
 class QuestionSet(BaseModel):
@@ -103,8 +102,6 @@ Create a comprehensive set of questions that effectively assess understanding of
         num_questions: int = 5,
         question_types: Optional[List[str]] = None,
         difficulty: str = "medium",
-        bloom_levels: Optional[List[str]] = None,
-        requirements: Optional[str] = None
     ) -> QuestionSet:
         """
         Generate educational questions for a topic.
@@ -125,10 +122,6 @@ Create a comprehensive set of questions that effectively assess understanding of
         # Default values
         if question_types is None:
             question_types = ["multiple_choice"]
-        if bloom_levels is None:
-            bloom_levels = ["understand", "apply", "analyze"]
-        if requirements is None:
-            requirements = "No additional requirements"
         
         # Get relevant context from RAG
         try:
@@ -146,8 +139,6 @@ Create a comprehensive set of questions that effectively assess understanding of
                 "num_questions": lambda _: str(num_questions),
                 "question_types": lambda _: ", ".join(question_types),
                 "difficulty": lambda _: difficulty,
-                "bloom_levels": lambda _: ", ".join(bloom_levels),
-                "requirements": lambda _: requirements,
                 "context": lambda _: context,
                 "format_instructions": lambda _: self.output_parser.get_format_instructions()
             }
@@ -211,8 +202,6 @@ Create a comprehensive set of questions that effectively assess understanding of
                 "num_questions": lambda _: str(num_questions),
                 "question_types": lambda _: ", ".join(question_types),
                 "difficulty": lambda _: difficulty,
-                "bloom_levels": lambda _: ", ".join(bloom_levels),
-                "requirements": lambda _: requirements,
                 "context": lambda _: context,
                 "format_instructions": lambda _: self.output_parser.get_format_instructions()
             }

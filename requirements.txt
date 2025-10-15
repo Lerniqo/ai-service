@@ -35,11 +35,11 @@ namex==0.1.0
 numpy==2.3.3
 opt_einsum==3.4.0
 optree==0.17.0
-packaging==25.0
+packaging==24.0
 pandas==2.3.3
 pillow==11.3.0
 pluggy==1.6.0
-protobuf==6.32.1
+protobuf==5.28.3
 pydantic==2.11.7
 pydantic-settings==2.10.1
 pydantic_core==2.33.2
@@ -83,8 +83,8 @@ wrapt==1.17.3
 langchain==0.3.18
 langchain-google-genai==2.0.8
 langchain-community==0.3.17
-langchain-core==0.3.28
-chromadb==0.6.5
+langchain-core==0.3.34
+chromadb
 google-generativeai==0.8.3
 faiss-cpu==1.9.0.post1
 sentence-transformers==3.4.1

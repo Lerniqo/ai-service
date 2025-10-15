@@ -14,6 +14,8 @@ from langchain.schema.runnable import RunnablePassthrough
 from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.llm.rag import get_rag_service
+from app.clients.content_service import ContentServiceClient
+from app.clients.kafka_client import get_kafka_client
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,8 @@ class LearningPathAgent:
         """Initialize the learning path agent."""
         self.settings = get_settings()
         self.rag_service = get_rag_service()
+        self.content_client = ContentServiceClient()
+        self.kafka_client = None  # Will be initialized when needed
         
         if not self.settings.GOOGLE_API_KEY:
             raise ValueError("GOOGLE_API_KEY not configured")
@@ -68,6 +72,13 @@ Consider the following when creating the learning path:
 3. Provide realistic time estimates
 4. Include diverse learning resources
 5. Ensure prerequisites are clear
+6. Consider the user's current mastery scores and available resources
+
+User's Mastery Scores:
+{mastery_scores}
+
+Available Resources:
+{available_resources}
 
 Use the following context from the knowledge base to inform your recommendations:
 {context}
@@ -76,89 +87,44 @@ Use the following context from the knowledge base to inform your recommendations
             ("human", """Create a personalized learning path for the following:
 
 Learning Goal: {goal}
-Current Level: {current_level}
-Preferences: {preferences}
-Available Time: {available_time}
 
-Generate a detailed learning path that will help achieve this goal.""")
+Generate a detailed learning path that will help achieve this goal based on the user's current mastery and available resources.""")
         ])
         
         logger.info("Learning Path Agent initialized")
     
-    def generate_learning_path(
+    async def _get_kafka_client(self):
+        """Get or initialize Kafka client."""
+        if self.kafka_client is None:
+            self.kafka_client = get_kafka_client()
+        return self.kafka_client
+    
+    async def generate_learning_path(
         self,
+        user_id: str,
         goal: str,
-        current_level: str = "beginner",
-        preferences: Optional[Dict[str, Any]] = None,
-        available_time: str = "flexible"
     ) -> LearningPath:
         """
         Generate a personalized learning path.
         
         Args:
+            user_id: The user's unique identifier
             goal: The learning goal or objective
-            current_level: Current knowledge level (beginner, intermediate, advanced)
-            preferences: Optional dict with learning preferences (topics, formats, etc.)
-            available_time: Available time for learning (e.g., "2 hours/day", "weekends only")
             
         Returns:
             LearningPath object with structured steps
         """
-        logger.info(f"Generating learning path for goal: {goal}")
+        logger.info(f"Generating learning path for user {user_id}, goal: {goal}")
         
-        # Get relevant context from RAG
+        # Fetch user's mastery scores and available resources from content service
         try:
-            retriever = self.rag_service.get_retriever(k=5)
-            context_docs = retriever.get_relevant_documents(goal)
-            context = "\n\n".join([doc.page_content for doc in context_docs])
+            mastery_scores = await self.content_client.get_user_mastery_score(user_id)
+            available_resources = await self.content_client.get_available_resources(user_id)
+            logger.info(f"Fetched mastery scores and resources for user {user_id}")
         except Exception as e:
-            logger.warning(f"Could not retrieve context from RAG: {e}")
-            context = "No additional context available."
-        
-        # Format preferences
-        preferences_str = str(preferences) if preferences else "No specific preferences"
-        
-        # Create the chain
-        chain = (
-            {
-                "goal": RunnablePassthrough(),
-                "current_level": lambda _: current_level,
-                "preferences": lambda _: preferences_str,
-                "available_time": lambda _: available_time,
-                "context": lambda _: context,
-                "format_instructions": lambda _: self.output_parser.get_format_instructions()
-            }
-            | self.prompt
-            | self.llm
-            | self.output_parser
-        )
-        
-        # Generate learning path
-        learning_path = chain.invoke(goal)
-        logger.info(f"Generated learning path with {len(learning_path.steps)} steps")
-        
-        return learning_path
-    
-    async def agenerate_learning_path(
-        self,
-        goal: str,
-        current_level: str = "beginner",
-        preferences: Optional[Dict[str, Any]] = None,
-        available_time: str = "flexible"
-    ) -> LearningPath:
-        """
-        Async version of generate_learning_path.
-        
-        Args:
-            goal: The learning goal or objective
-            current_level: Current knowledge level (beginner, intermediate, advanced)
-            preferences: Optional dict with learning preferences (topics, formats, etc.)
-            available_time: Available time for learning
-            
-        Returns:
-            LearningPath object with structured steps
-        """
-        logger.info(f"Async generating learning path for goal: {goal}")
+            logger.warning(f"Could not fetch user data from content service: {e}")
+            mastery_scores = {}
+            available_resources = []
         
         # Get relevant context from RAG
         try:
@@ -169,16 +135,19 @@ Generate a detailed learning path that will help achieve this goal.""")
             logger.warning(f"Could not retrieve context from RAG: {e}")
             context = "No additional context available."
         
-        # Format preferences
-        preferences_str = str(preferences) if preferences else "No specific preferences"
+        # Format data for prompt
+        preferences_str =  "No specific preferences"
+        mastery_scores_str = str(mastery_scores) if mastery_scores else "No mastery score data available"
+        resources_str = str(available_resources) if available_resources else "No specific resources available"
         
         # Create the chain
         chain = (
             {
-                "goal": RunnablePassthrough(),
-                "current_level": lambda _: current_level,
+                "user_id": RunnablePassthrough(),
+                "goal": lambda _: goal,
                 "preferences": lambda _: preferences_str,
-                "available_time": lambda _: available_time,
+                "mastery_scores": lambda _: mastery_scores_str,
+                "available_resources": lambda _: resources_str,
                 "context": lambda _: context,
                 "format_instructions": lambda _: self.output_parser.get_format_instructions()
             }
@@ -188,7 +157,25 @@ Generate a detailed learning path that will help achieve this goal.""")
         )
         
         # Generate learning path
-        learning_path = await chain.ainvoke(goal)
-        logger.info(f"Generated learning path with {len(learning_path.steps)} steps")
+        learning_path = await chain.ainvoke(user_id)
+        logger.info(f"Generated learning path with {len(learning_path.steps)} steps for user {user_id}")
+        
+        # Publish to Kafka learning_path topic
+        try:
+            kafka_client = await self._get_kafka_client()
+            await kafka_client.send(
+                topic="learning_path",
+                value={
+                    "user_id": user_id,
+                    "learning_goal": goal,
+                    "learning_path": learning_path.model_dump(),
+                    "mastery_scores": mastery_scores,
+                    "available_resources": available_resources
+                },
+                key=user_id
+            )
+            logger.info(f"Published learning path to Kafka for user {user_id}")
+        except Exception as e:
+            logger.error(f"Failed to publish learning path to Kafka: {e}")
         
         return learning_path

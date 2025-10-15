@@ -14,6 +14,10 @@ from app.llm.main import get_llm_service
 from app.llm.agents.learning_path import LearningPath
 from app.llm.agents.question_generator import QuestionSet
 from app.llm.agents.chatbot import ChatbotResponse
+from app.clients.kafka_client import get_kafka_client
+from app.schema.events import QuestionGenerationRequestEvent
+from app.schema.event_data import QuestionGenerationRequestData
+from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +55,28 @@ class QuestionGenerationRequest(BaseModel):
         description="Bloom's taxonomy levels"
     )
     requirements: Optional[str] = Field(None, description="Additional requirements")
+
+
+class ContentServiceQuestionRequest(BaseModel):
+    """Request from content service to generate questions."""
+    request_id: str = Field(..., description="Unique identifier for this request")
+    topic: str = Field(..., description="Topic to generate questions about")
+    num_questions: int = Field(default=5, ge=1, le=50, description="Number of questions")
+    question_types: Optional[List[str]] = Field(
+        default=None,
+        description="Question types (multiple_choice, true_false, short_answer, essay)"
+    )
+    difficulty: str = Field(default="medium", description="Difficulty level (easy, medium, hard)")
+    content_id: Optional[str] = Field(None, description="ID of the content this relates to")
+    user_id: Optional[str] = Field(None, description="User ID if personalized questions")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+
+
+class ContentServiceQuestionResponse(BaseModel):
+    """Response for content service question generation."""
+    status: str = Field(..., description="Status of the request (accepted, processing, completed, failed)")
+    request_id: str = Field(..., description="The request identifier")
+    message: str = Field(..., description="Status message")
 
 
 class ChatRequest(BaseModel):
@@ -240,4 +266,78 @@ async def close_chat_session(session_id: str):
         }
     except Exception as e:
         logger.error(f"Error closing chat session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Content Service Integration Endpoints (Kafka-based)
+
+@router.post("/questions/generate", response_model=ContentServiceQuestionResponse)
+async def generate_questions_for_content_service(
+    request: ContentServiceQuestionRequest
+):
+    """
+    Generate questions based on request from content service using Kafka.
+    
+    This endpoint receives a request from the content service, publishes it to Kafka,
+    and immediately returns an acknowledgment. The question generation happens
+    asynchronously via Kafka consumer, and results are published to the response topic.
+    
+    Flow:
+    1. Content service sends request to this endpoint
+    2. This endpoint validates and publishes request to Kafka
+    3. Returns immediate acknowledgment
+    4. Question generator consumer picks up the request
+    5. Generates questions and publishes response to Kafka
+    6. Content service consumes the response from Kafka
+    """
+    try:
+        logger.info(f"Received question generation request {request.request_id} from content service")
+        
+        settings = get_settings()
+        kafka_client = get_kafka_client()
+        
+        # Create request event
+        request_data = QuestionGenerationRequestData(
+            request_id=request.request_id,
+            topic=request.topic,
+            num_questions=request.num_questions,
+            question_types=request.question_types,
+            difficulty=request.difficulty,
+            content_id=request.content_id,
+            user_id=request.user_id,
+            metadata=request.metadata
+        )
+        
+        request_event = QuestionGenerationRequestEvent(
+            event_type="question.generation.request",
+            event_data=request_data,
+            user_id=request.user_id or "content-service",
+            metadata={
+                "source": "content-service",
+                "request_id": request.request_id
+            }
+        )
+        
+        # Publish request to Kafka
+        await kafka_client.publish(
+            topic=settings.KAFKA_QUESTION_REQUEST_TOPIC,
+            message=request_event.dict(by_alias=True),
+            key=request.request_id
+        )
+        
+        logger.info(
+            f"Question generation request {request.request_id} published to Kafka topic: {settings.KAFKA_QUESTION_REQUEST_TOPIC}"
+        )
+        
+        return ContentServiceQuestionResponse(
+            status="accepted",
+            request_id=request.request_id,
+            message=f"Question generation request accepted and queued. Generating {request.num_questions} questions for topic: {request.topic}"
+        )
+        
+    except ValueError as e:
+        logger.error(f"Validation error for request {request.request_id}: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error accepting question generation request {request.request_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
