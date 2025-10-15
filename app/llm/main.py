@@ -207,8 +207,6 @@ class LLMService:
         num_questions: int = 5,
         question_types: Optional[List[str]] = None,
         difficulty: str = "medium",
-        bloom_levels: Optional[List[str]] = None,
-        requirements: Optional[str] = None
     ) -> QuestionSet:
         """
         Generate educational questions.
@@ -218,8 +216,6 @@ class LLMService:
             num_questions: Number of questions
             question_types: Types of questions
             difficulty: Difficulty level
-            bloom_levels: Bloom's taxonomy levels
-            requirements: Additional requirements
             
         Returns:
             QuestionSet object
@@ -228,9 +224,7 @@ class LLMService:
             topic=topic,
             num_questions=num_questions,
             question_types=question_types,
-            difficulty=difficulty,
-            bloom_levels=bloom_levels,
-            requirements=requirements
+            difficulty=difficulty
         )
     
     async def agenerate_questions(
@@ -239,17 +233,13 @@ class LLMService:
         num_questions: int = 5,
         question_types: Optional[List[str]] = None,
         difficulty: str = "medium",
-        bloom_levels: Optional[List[str]] = None,
-        requirements: Optional[str] = None
     ) -> QuestionSet:
         """Async version of generate_questions."""
         return await self.question_generator_agent.agenerate_questions(
             topic=topic,
             num_questions=num_questions,
             question_types=question_types,
-            difficulty=difficulty,
-            bloom_levels=bloom_levels,
-            requirements=requirements
+            difficulty=difficulty
         )
     
     # Chatbot Operations

@@ -50,11 +50,6 @@ class QuestionGenerationRequest(BaseModel):
         description="Question types (multiple_choice, true_false, short_answer, essay)"
     )
     difficulty: str = Field(default="medium", description="Difficulty level (easy, medium, hard)")
-    bloom_levels: Optional[List[str]] = Field(
-        default=None,
-        description="Bloom's taxonomy levels"
-    )
-    requirements: Optional[str] = Field(None, description="Additional requirements")
 
 
 class ContentServiceQuestionRequest(BaseModel):
@@ -173,9 +168,7 @@ async def generate_questions(request: QuestionGenerationRequest):
             topic=request.topic,
             num_questions=request.num_questions,
             question_types=request.question_types,
-            difficulty=request.difficulty,
-            bloom_levels=request.bloom_levels,
-            requirements=request.requirements
+            difficulty=request.difficulty
         )
         return question_set
     except ValueError as e:

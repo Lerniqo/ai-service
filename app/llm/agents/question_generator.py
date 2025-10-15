@@ -88,8 +88,6 @@ Topic: {topic}
 Number of Questions: {num_questions}
 Question Types: {question_types}
 Difficulty Level: {difficulty}
-Bloom's Levels: {bloom_levels}
-Additional Requirements: {requirements}
 
 Create a comprehensive set of questions that effectively assess understanding of this topic.""")
         ])
@@ -111,8 +109,6 @@ Create a comprehensive set of questions that effectively assess understanding of
             num_questions: Number of questions to generate
             question_types: List of question types (default: ["multiple_choice"])
             difficulty: Difficulty level (easy, medium, hard)
-            bloom_levels: Target Bloom's taxonomy levels
-            requirements: Additional requirements or constraints
             
         Returns:
             QuestionSet object with generated questions
@@ -159,8 +155,6 @@ Create a comprehensive set of questions that effectively assess understanding of
         num_questions: int = 5,
         question_types: Optional[List[str]] = None,
         difficulty: str = "medium",
-        bloom_levels: Optional[List[str]] = None,
-        requirements: Optional[str] = None
     ) -> QuestionSet:
         """
         Async version of generate_questions.
@@ -170,8 +164,6 @@ Create a comprehensive set of questions that effectively assess understanding of
             num_questions: Number of questions to generate
             question_types: List of question types
             difficulty: Difficulty level
-            bloom_levels: Target Bloom's taxonomy levels
-            requirements: Additional requirements
             
         Returns:
             QuestionSet object with generated questions
@@ -181,10 +173,6 @@ Create a comprehensive set of questions that effectively assess understanding of
         # Default values
         if question_types is None:
             question_types = ["multiple_choice"]
-        if bloom_levels is None:
-            bloom_levels = ["understand", "apply", "analyze"]
-        if requirements is None:
-            requirements = "No additional requirements"
         
         # Get relevant context from RAG
         try:

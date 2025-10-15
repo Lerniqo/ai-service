@@ -105,8 +105,7 @@ async def demo_question_generation():
             topic="Python Functions",
             num_questions=3,
             question_types=["multiple_choice", "short_answer"],
-            difficulty="medium",
-            bloom_levels=["understand", "apply"]
+            difficulty="medium"
         )
         
         print(f"\n✓ Topic: {questions.topic}")

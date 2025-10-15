@@ -38,9 +38,9 @@ USER appuser
 # Expose port
 EXPOSE 3000
 
-# Health check using curl
+# Health check using Python's built-in HTTP client
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/health/ping || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:3000/health/ping', timeout=2)" || exit 1
 
 # Default command runs the FastAPI application
 CMD ["python", "run.py"]
