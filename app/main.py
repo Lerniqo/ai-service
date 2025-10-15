@@ -10,6 +10,7 @@ from app.consumers.event_consumer import create_event_consumer
 from app.consumers.learning_goal_consumer import create_learning_goal_consumer
 from app.consumers.question_generator_consumer import create_question_generator_consumer
 from app.clients.progress_service import ProgressServiceClient
+from app.llm.init import initialize_langchain_models
 
 settings = get_settings()
 
@@ -64,6 +65,15 @@ async def startup_event():
     logger.info(
         f"Starting {settings.APP_NAME} v{settings.APP_VERSION} in {settings.ENV} environment"
     )
+    
+    # Pre-initialize LangChain models BEFORE starting Kafka consumers
+    # This ensures Pydantic models are fully defined before any agent instantiation
+    logger.info("Pre-initializing LangChain models...")
+    langchain_init_success = initialize_langchain_models()
+    if not langchain_init_success:
+        logger.error("Failed to pre-initialize LangChain models - LLM features may not work correctly")
+    else:
+        logger.info("LangChain models pre-initialized successfully")
     
     try:
         kafka_client = get_kafka_client(

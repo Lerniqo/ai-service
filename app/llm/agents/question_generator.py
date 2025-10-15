@@ -22,29 +22,73 @@ def _ensure_langchain_loaded():
     """Lazy load langchain modules."""
     global ChatGoogleGenerativeAI, ChatPromptTemplate, PydanticOutputParser, RunnablePassthrough
     if ChatGoogleGenerativeAI is None:
-        # Import BaseCache first to resolve forward references
+        # Import all cache-related dependencies BEFORE importing ChatGoogleGenerativeAI
+        # This resolves Pydantic forward references
         try:
-            from langchain.globals import set_llm_cache
             from langchain_core.caches import BaseCache
-        except ImportError:
-            # Fallback for different langchain versions
-            pass
+            from langchain_core.language_models.base import BaseLanguageModel
+            from langchain_core.language_models.chat_models import BaseChatModel
+            logger.debug("BaseCache and BaseLanguageModel imported successfully")
+            
+            # Rebuild base models first
+            try:
+                BaseCache.model_rebuild()
+                logger.debug("BaseCache.model_rebuild() completed")
+            except Exception as e:
+                logger.debug(f"BaseCache rebuild not needed or failed: {e}")
+                
+            try:
+                BaseLanguageModel.model_rebuild()
+                logger.debug("BaseLanguageModel.model_rebuild() completed")
+            except Exception as e:
+                logger.debug(f"BaseLanguageModel rebuild not needed or failed: {e}")
+                
+            try:
+                BaseChatModel.model_rebuild()
+                logger.debug("BaseChatModel.model_rebuild() completed")
+            except Exception as e:
+                logger.debug(f"BaseChatModel rebuild not needed or failed: {e}")
+                
+        except ImportError as e:
+            logger.warning(f"Could not import base models from langchain_core: {e}")
+            try:
+                from langchain.cache import BaseCache
+                logger.debug("BaseCache imported from langchain.cache")
+                try:
+                    BaseCache.model_rebuild()
+                    logger.debug("BaseCache.model_rebuild() completed")
+                except Exception as e2:
+                    logger.debug(f"BaseCache rebuild not needed or failed: {e2}")
+            except ImportError as e2:
+                logger.warning(f"Could not import BaseCache from langchain.cache either: {e2}")
         
+        # Now import ChatGoogleGenerativeAI
         from langchain_google_genai import ChatGoogleGenerativeAI as _ChatGoogleGenerativeAI
         from langchain.prompts import ChatPromptTemplate as _ChatPromptTemplate
         from langchain.output_parsers import PydanticOutputParser as _PydanticOutputParser
         from langchain.schema.runnable import RunnablePassthrough as _RunnablePassthrough
         
+        # CRITICAL: Call model_rebuild() BEFORE assigning to globals
+        # This ensures the Pydantic model is fully defined before use
+        try:
+            logger.debug("Attempting to rebuild ChatGoogleGenerativeAI Pydantic model...")
+            _ChatGoogleGenerativeAI.model_rebuild()
+            logger.info("ChatGoogleGenerativeAI.model_rebuild() completed successfully")
+        except Exception as e:
+            logger.error(f"Failed to rebuild ChatGoogleGenerativeAI model: {e}", exc_info=True)
+            # Try to rebuild all base models
+            try:
+                from pydantic import BaseModel
+                BaseModel.model_rebuild()
+                _ChatGoogleGenerativeAI.model_rebuild()
+                logger.info("ChatGoogleGenerativeAI.model_rebuild() succeeded after rebuilding BaseModel")
+            except Exception as e2:
+                logger.error(f"Second attempt to rebuild failed: {e2}", exc_info=True)
+        
         globals()['ChatGoogleGenerativeAI'] = _ChatGoogleGenerativeAI
         globals()['ChatPromptTemplate'] = _ChatPromptTemplate
         globals()['PydanticOutputParser'] = _PydanticOutputParser
         globals()['RunnablePassthrough'] = _RunnablePassthrough
-        
-        # Rebuild Pydantic model to resolve forward references
-        try:
-            _ChatGoogleGenerativeAI.model_rebuild()
-        except Exception as e:
-            logger.debug(f"ChatGoogleGenerativeAI model_rebuild not needed or failed: {e}")
 
 
 # Output schema for questions
