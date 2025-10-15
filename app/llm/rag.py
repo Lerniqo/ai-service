@@ -8,19 +8,43 @@ for enhancing LLM responses with relevant context.
 import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import Chroma
-from langchain_community.document_loaders import (
-    DirectoryLoader,
-    TextLoader,
-    JSONLoader,
-    CSVLoader
-)
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Lazy imports to avoid loading heavy ML libraries at startup
+GoogleGenerativeAIEmbeddings = None
+Chroma = None
+DirectoryLoader = None
+TextLoader = None
+JSONLoader = None
+CSVLoader = None
+RecursiveCharacterTextSplitter = None
+Document = None
+
+def _ensure_langchain_loaded():
+    """Lazy load langchain and related modules."""
+    global GoogleGenerativeAIEmbeddings, Chroma, DirectoryLoader, TextLoader, JSONLoader, CSVLoader, RecursiveCharacterTextSplitter, Document
+    if GoogleGenerativeAIEmbeddings is None:
+        from langchain_google_genai import GoogleGenerativeAIEmbeddings as _GoogleGenerativeAIEmbeddings
+        from langchain_community.vectorstores import Chroma as _Chroma
+        from langchain_community.document_loaders import (
+            DirectoryLoader as _DirectoryLoader,
+            TextLoader as _TextLoader,
+            JSONLoader as _JSONLoader,
+            CSVLoader as _CSVLoader
+        )
+        from langchain.text_splitter import RecursiveCharacterTextSplitter as _RecursiveCharacterTextSplitter
+        from langchain.schema import Document as _Document
+        
+        globals()['GoogleGenerativeAIEmbeddings'] = _GoogleGenerativeAIEmbeddings
+        globals()['Chroma'] = _Chroma
+        globals()['DirectoryLoader'] = _DirectoryLoader
+        globals()['TextLoader'] = _TextLoader
+        globals()['JSONLoader'] = _JSONLoader
+        globals()['CSVLoader'] = _CSVLoader
+        globals()['RecursiveCharacterTextSplitter'] = _RecursiveCharacterTextSplitter
+        globals()['Document'] = _Document
 
 
 class RAGService:
@@ -28,6 +52,7 @@ class RAGService:
     
     def __init__(self):
         """Initialize RAG service with settings."""
+        _ensure_langchain_loaded()  # Ensure langchain is loaded when RAGService is instantiated
         self.settings = get_settings()
         self.embeddings = None
         self.vector_store = None

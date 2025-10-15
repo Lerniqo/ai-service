@@ -7,10 +7,6 @@ and learning objectives.
 
 import logging
 from typing import List, Dict, Any, Optional
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import ChatPromptTemplate
-from langchain.output_parsers import PydanticOutputParser
-from langchain.schema.runnable import RunnablePassthrough
 from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.llm.rag import get_rag_service
@@ -19,11 +15,31 @@ from app.clients.kafka_client import get_kafka_client
 
 logger = logging.getLogger(__name__)
 
-# Rebuild Pydantic model to resolve forward references and prevent initialization errors
-try:
-    ChatGoogleGenerativeAI.model_rebuild()
-except Exception as e:
-    logger.debug(f"ChatGoogleGenerativeAI model_rebuild not needed or failed: {e}")
+# Lazy imports to avoid loading heavy ML libraries at startup
+ChatGoogleGenerativeAI = None
+ChatPromptTemplate = None
+PydanticOutputParser = None
+RunnablePassthrough = None
+
+def _ensure_langchain_loaded():
+    """Lazy load langchain modules."""
+    global ChatGoogleGenerativeAI, ChatPromptTemplate, PydanticOutputParser, RunnablePassthrough
+    if ChatGoogleGenerativeAI is None:
+        from langchain_google_genai import ChatGoogleGenerativeAI as _ChatGoogleGenerativeAI
+        from langchain.prompts import ChatPromptTemplate as _ChatPromptTemplate
+        from langchain.output_parsers import PydanticOutputParser as _PydanticOutputParser
+        from langchain.schema.runnable import RunnablePassthrough as _RunnablePassthrough
+        
+        globals()['ChatGoogleGenerativeAI'] = _ChatGoogleGenerativeAI
+        globals()['ChatPromptTemplate'] = _ChatPromptTemplate
+        globals()['PydanticOutputParser'] = _PydanticOutputParser
+        globals()['RunnablePassthrough'] = _RunnablePassthrough
+        
+        # Rebuild Pydantic model to resolve forward references
+        try:
+            ChatGoogleGenerativeAI.model_rebuild()
+        except Exception as e:
+            logger.debug(f"ChatGoogleGenerativeAI model_rebuild not needed or failed: {e}")
 
 
 # Output schema for learning path
@@ -50,6 +66,8 @@ class LearningPathAgent:
     
     def __init__(self):
         """Initialize the learning path agent."""
+        _ensure_langchain_loaded()  # Ensure langchain is loaded
+        
         self.settings = get_settings()
         self.rag_service = get_rag_service()
         self.content_client = ContentServiceClient()

@@ -7,22 +7,49 @@ Provides intelligent responses to student queries using retrieved context.
 
 import logging
 from typing import List, Dict, Any, Optional
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.memory import ConversationBufferMemory
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
-from langchain.schema.runnable import RunnablePassthrough, RunnableLambda
 from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.llm.rag import get_rag_service
 
 logger = logging.getLogger(__name__)
 
-# Rebuild Pydantic model to resolve forward references and prevent initialization errors
-try:
-    ChatGoogleGenerativeAI.model_rebuild()
-except Exception as e:
-    logger.debug(f"ChatGoogleGenerativeAI model_rebuild not needed or failed: {e}")
+# Lazy imports to avoid loading heavy ML libraries at startup
+ChatGoogleGenerativeAI = None
+ChatPromptTemplate = None
+MessagesPlaceholder = None
+ConversationBufferMemory = None
+HumanMessage = None
+AIMessage = None
+SystemMessage = None
+RunnablePassthrough = None
+RunnableLambda = None
+
+def _ensure_langchain_loaded():
+    """Lazy load langchain modules."""
+    global ChatGoogleGenerativeAI, ChatPromptTemplate, MessagesPlaceholder, ConversationBufferMemory
+    global HumanMessage, AIMessage, SystemMessage, RunnablePassthrough, RunnableLambda
+    if ChatGoogleGenerativeAI is None:
+        from langchain_google_genai import ChatGoogleGenerativeAI as _ChatGoogleGenerativeAI
+        from langchain.prompts import ChatPromptTemplate as _ChatPromptTemplate, MessagesPlaceholder as _MessagesPlaceholder
+        from langchain.memory import ConversationBufferMemory as _ConversationBufferMemory
+        from langchain.schema import HumanMessage as _HumanMessage, AIMessage as _AIMessage, SystemMessage as _SystemMessage
+        from langchain.schema.runnable import RunnablePassthrough as _RunnablePassthrough, RunnableLambda as _RunnableLambda
+        
+        globals()['ChatGoogleGenerativeAI'] = _ChatGoogleGenerativeAI
+        globals()['ChatPromptTemplate'] = _ChatPromptTemplate
+        globals()['MessagesPlaceholder'] = _MessagesPlaceholder
+        globals()['ConversationBufferMemory'] = _ConversationBufferMemory
+        globals()['HumanMessage'] = _HumanMessage
+        globals()['AIMessage'] = _AIMessage
+        globals()['SystemMessage'] = _SystemMessage
+        globals()['RunnablePassthrough'] = _RunnablePassthrough
+        globals()['RunnableLambda'] = _RunnableLambda
+        
+        # Rebuild Pydantic model to resolve forward references
+        try:
+            ChatGoogleGenerativeAI.model_rebuild()
+        except Exception as e:
+            logger.debug(f"ChatGoogleGenerativeAI model_rebuild not needed or failed: {e}")
 
 
 # Output schema for chatbot response
@@ -44,6 +71,8 @@ class ChatbotAgent:
         Args:
             session_id: Optional session identifier for conversation tracking
         """
+        _ensure_langchain_loaded()  # Ensure langchain is loaded
+        
         self.settings = get_settings()
         self.rag_service = get_rag_service()
         self.session_id = session_id or "default"
