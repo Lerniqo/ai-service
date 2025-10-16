@@ -147,7 +147,7 @@ class QuestionGeneratorConsumer:
                 status="completed",
                 topic=question_set.topic,
                 total_questions=question_set.total_questions,
-                questions=[q.dict() for q in question_set.questions],
+                questions=[q.model_dump(mode='json') for q in question_set.questions],
                 content_id=request_data.content_id,
                 user_id=request_data.user_id,
                 metadata=request_data.metadata
@@ -166,7 +166,7 @@ class QuestionGeneratorConsumer:
             # Publish response to Kafka
             await self.kafka_client.publish(
                 topic=self.settings.KAFKA_QUESTION_RESPONSE_TOPIC,
-                message=response_event.dict(by_alias=True),
+                message=response_event.model_dump(mode='json', by_alias=True),
                 key=request_id
             )
             
@@ -224,7 +224,7 @@ class QuestionGeneratorConsumer:
             
             await self.kafka_client.publish(
                 topic=self.settings.KAFKA_QUESTION_RESPONSE_TOPIC,
-                message=response_event.dict(by_alias=True),
+                message=response_event.model_dump(mode='json', by_alias=True),
                 key=request_id
             )
             

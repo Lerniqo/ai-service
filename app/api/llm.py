@@ -203,7 +203,7 @@ async def generate_learning_path(request: ContentServiceLearningPathRequest):
         # Publish request to Kafka
         await kafka_client.publish(
             topic=settings.KAFKA_LEARNING_PATH_REQUEST_TOPIC,
-            message=request_event.dict(by_alias=True),
+            message=request_event.model_dump(mode='json', by_alias=True),
             key=request.request_id
         )
         
@@ -384,7 +384,7 @@ async def generate_questions_for_content_service(
         # Publish request to Kafka
         await kafka_client.publish(
             topic=settings.KAFKA_QUESTION_REQUEST_TOPIC,
-            message=request_event.dict(by_alias=True),
+            message=request_event.model_dump(mode='json', by_alias=True),
             key=request.request_id
         )
         

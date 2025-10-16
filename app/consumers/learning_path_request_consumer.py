@@ -148,7 +148,7 @@ class LearningPathRequestConsumer:
                 status="completed",
                 user_id=request_data.user_id,
                 goal=request_data.goal,
-                learning_path=learning_path.dict(),
+                learning_path=learning_path.model_dump(mode='json'),
                 metadata=request_data.metadata
             )
             
@@ -165,7 +165,7 @@ class LearningPathRequestConsumer:
             # Publish response to Kafka
             await self.kafka_client.publish(
                 topic=self.settings.KAFKA_LEARNING_PATH_RESPONSE_TOPIC,
-                message=response_event.dict(by_alias=True),
+                message=response_event.model_dump(mode='json', by_alias=True),
                 key=request_id
             )
             
@@ -233,7 +233,7 @@ class LearningPathRequestConsumer:
             
             await self.kafka_client.publish(
                 topic=self.settings.KAFKA_LEARNING_PATH_RESPONSE_TOPIC,
-                message=response_event.dict(by_alias=True),
+                message=response_event.model_dump(mode='json', by_alias=True),
                 key=request_id
             )
             
