@@ -6,10 +6,35 @@ This should be called during application startup to ensure all models are proper
 """
 
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 _initialized = False
+
+# Force early initialization by importing base classes
+try:
+    # Import BaseCache BEFORE any other LangChain imports
+    try:
+        from langchain_core.caches import BaseCache
+        BaseCache.model_rebuild()
+    except:
+        pass
+    
+    try:
+        from langchain_core.language_models.base import BaseLanguageModel
+        from langchain_core.language_models.chat_models import BaseChatModel
+        BaseLanguageModel.model_rebuild()
+        BaseChatModel.model_rebuild()
+    except:
+        pass
+    
+    # Import and rebuild ChatGoogleGenerativeAI immediately
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    ChatGoogleGenerativeAI.model_rebuild()
+    logger.debug("Module-level ChatGoogleGenerativeAI.model_rebuild() completed")
+except Exception as e:
+    logger.debug(f"Module-level initialization skipped: {e}")
 
 
 def initialize_langchain_models():
@@ -32,38 +57,69 @@ def initialize_langchain_models():
     try:
         logger.info("Pre-initializing LangChain models to resolve Pydantic dependencies...")
         
-        # Step 1: Import BaseCache first to resolve forward references
+        # Step 1: Import and rebuild BaseCache and related models FIRST
+        cache_imported = False
         try:
             from langchain_core.caches import BaseCache
             logger.debug("✓ BaseCache imported from langchain_core.caches")
+            cache_imported = True
         except ImportError as e:
             logger.warning(f"Could not import BaseCache from langchain_core.caches: {e}")
             try:
                 from langchain.cache import BaseCache
                 logger.debug("✓ BaseCache imported from langchain.cache (fallback)")
+                cache_imported = True
             except ImportError as e2:
-                logger.error(f"Could not import BaseCache from either location: {e2}")
-                # Continue anyway, might still work
+                logger.warning(f"Could not import BaseCache from either location: {e2}")
+        
+        # Rebuild BaseCache if imported
+        if cache_imported:
+            try:
+                BaseCache.model_rebuild()
+                logger.debug("✓ BaseCache.model_rebuild() completed")
+            except Exception as e:
+                logger.debug(f"BaseCache rebuild skipped: {e}")
+        
+        # Import and rebuild base language models
+        try:
+            from langchain_core.language_models.base import BaseLanguageModel
+            from langchain_core.language_models.chat_models import BaseChatModel
+            logger.debug("✓ BaseLanguageModel and BaseChatModel imported")
+            
+            try:
+                BaseLanguageModel.model_rebuild()
+                logger.debug("✓ BaseLanguageModel.model_rebuild() completed")
+            except Exception as e:
+                logger.debug(f"BaseLanguageModel rebuild skipped: {e}")
+            
+            try:
+                BaseChatModel.model_rebuild()
+                logger.debug("✓ BaseChatModel.model_rebuild() completed")
+            except Exception as e:
+                logger.debug(f"BaseChatModel rebuild skipped: {e}")
+        except ImportError as e:
+            logger.warning(f"Could not import base language models: {e}")
         
         # Step 2: Import ChatGoogleGenerativeAI
         from langchain_google_genai import ChatGoogleGenerativeAI
         logger.debug("✓ ChatGoogleGenerativeAI imported")
         
-        # Step 3: Rebuild the Pydantic model
-        try:
-            ChatGoogleGenerativeAI.model_rebuild()
-            logger.info("✓ ChatGoogleGenerativeAI.model_rebuild() completed successfully")
-        except Exception as e:
-            logger.error(f"Failed to rebuild ChatGoogleGenerativeAI model: {e}", exc_info=True)
-            # Try alternative approach
+        # Step 3: Rebuild the Pydantic model MULTIPLE TIMES if needed
+        rebuild_success = False
+        for attempt in range(3):
             try:
-                from pydantic import BaseModel
-                BaseModel.model_rebuild()
                 ChatGoogleGenerativeAI.model_rebuild()
-                logger.info("✓ ChatGoogleGenerativeAI.model_rebuild() succeeded after rebuilding BaseModel")
-            except Exception as e2:
-                logger.error(f"Second attempt to rebuild failed: {e2}", exc_info=True)
-                return False
+                logger.info(f"✓ ChatGoogleGenerativeAI.model_rebuild() completed successfully (attempt {attempt + 1})")
+                rebuild_success = True
+                break
+            except Exception as e:
+                logger.warning(f"Attempt {attempt + 1} to rebuild ChatGoogleGenerativeAI failed: {e}")
+                if attempt == 2:
+                    logger.error(f"Failed to rebuild ChatGoogleGenerativeAI model after 3 attempts: {e}", exc_info=True)
+        
+        if not rebuild_success:
+            logger.error("Could not rebuild ChatGoogleGenerativeAI - LLM features may not work")
+            return False
         
         # Step 4: Import other commonly used LangChain components
         try:
