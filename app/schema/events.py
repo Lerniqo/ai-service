@@ -8,7 +8,9 @@ from app.schema.event_data import (
     QuizAttemptData, 
     VideoWatchData,
     QuestionGenerationRequestData,
-    QuestionGenerationResponseData
+    QuestionGenerationResponseData,
+    LearningPathRequestData,
+    LearningPathResponseData
 )
 
 
@@ -276,3 +278,69 @@ class QuestionGenerationResponseEvent(Event):
             }
         }
     )
+
+
+class LearningPathRequestEvent(Event):
+    """Event schema for learning path generation requests."""
+    event_data: LearningPathRequestData = Field(
+        ...,
+        alias="eventData",
+        description="Learning path request data"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "eventId": "evt_lp_request_123",
+                "eventType": "learning_path.request",
+                "eventData": {
+                    "request_id": "lp-req-123",
+                    "user_id": "user-789",
+                    "goal": "Learn Python programming",
+                    "current_level": "beginner",
+                    "preferences": {"learning_style": "visual"},
+                    "available_time": "2 hours per day"
+                },
+                "userId": "content-service",
+                "metadata": {
+                    "source": "content-service",
+                    "version": "1.0.0"
+                }
+            }
+        }
+    )
+
+
+class LearningPathResponseEvent(Event):
+    """Event schema for learning path generation responses."""
+    event_data: LearningPathResponseData = Field(
+        ...,
+        alias="eventData",
+        description="Learning path response data"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "eventId": "evt_lp_response_123",
+                "eventType": "learning_path.response",
+                "eventData": {
+                    "request_id": "lp-req-123",
+                    "status": "completed",
+                    "user_id": "user-789",
+                    "goal": "Learn Python programming",
+                    "learning_path": {}
+                },
+                "userId": "ai-service",
+                "metadata": {
+                    "source": "ai-service",
+                    "version": "1.0.0"
+                }
+            }
+        }
+    )
+

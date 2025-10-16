@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     KAFKA_EVENTS_TOPIC: str = Field(default="events", env="KAFKA_EVENTS_TOPIC")
     KAFKA_QUESTION_REQUEST_TOPIC: str = Field(default="question.request", env="KAFKA_QUESTION_REQUEST_TOPIC")
     KAFKA_QUESTION_RESPONSE_TOPIC: str = Field(default="question.response", env="KAFKA_QUESTION_RESPONSE_TOPIC")
+    KAFKA_LEARNING_PATH_REQUEST_TOPIC: str = Field(default="learning_path.request", env="KAFKA_LEARNING_PATH_REQUEST_TOPIC")
+    KAFKA_LEARNING_PATH_RESPONSE_TOPIC: str = Field(default="learning_path.response", env="KAFKA_LEARNING_PATH_RESPONSE_TOPIC")
 
     # LLM configuration (Google Gemini)
     GOOGLE_API_KEY: Optional[str] = Field(default=None, env="GOOGLE_API_KEY")

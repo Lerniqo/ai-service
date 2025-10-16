@@ -15,8 +15,8 @@ from app.llm.agents.learning_path import LearningPath
 from app.llm.agents.question_generator import QuestionSet
 from app.llm.agents.chatbot import ChatbotResponse
 from app.clients.kafka_client import get_kafka_client
-from app.schema.events import QuestionGenerationRequestEvent
-from app.schema.event_data import QuestionGenerationRequestData
+from app.schema.events import QuestionGenerationRequestEvent, LearningPathRequestEvent
+from app.schema.event_data import QuestionGenerationRequestData, LearningPathRequestData
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -70,6 +70,24 @@ class ContentServiceQuestionRequest(BaseModel):
 
 class ContentServiceQuestionResponse(BaseModel):
     """Response for content service question generation."""
+    status: str = Field(..., description="Status of the request (accepted, processing, completed, failed)")
+    request_id: str = Field(..., description="The request identifier")
+    message: str = Field(..., description="Status message")
+
+
+class ContentServiceLearningPathRequest(BaseModel):
+    """Request from content service to generate learning path."""
+    request_id: str = Field(..., description="Unique identifier for this request")
+    user_id: str = Field(..., description="User ID requesting the learning path")
+    goal: str = Field(..., description="Learning goal or objective")
+    current_level: str = Field(default="beginner", description="Current knowledge level")
+    preferences: Optional[Dict[str, Any]] = Field(None, description="Learning preferences")
+    available_time: str = Field(default="flexible", description="Available time for learning")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+
+
+class ContentServiceLearningPathResponse(BaseModel):
+    """Response for content service learning path generation."""
     status: str = Field(..., description="Status of the request (accepted, processing, completed, failed)")
     request_id: str = Field(..., description="The request identifier")
     message: str = Field(..., description="Status message")
@@ -133,27 +151,77 @@ async def clear_knowledge_base():
 
 
 # Learning Path Endpoints
+# NOTE: Learning path generation is now handled via Kafka.
+# Requests should be published to the 'learning_path.request' topic,
+# and responses will be published to the 'learning_path.response' topic.
+# The endpoint below is for direct API access if needed (optional).
 
-@router.post("/learning-path/generate", response_model=LearningPath)
-async def generate_learning_path(request: LearningPathRequest):
+@router.post("/learning-path/generate", response_model=ContentServiceLearningPathResponse)
+async def generate_learning_path(request: ContentServiceLearningPathRequest):
     """
-    Generate a personalized learning path based on goals and preferences.
+    Generate a personalized learning path based on goals and preferences using Kafka.
+    
+    This endpoint receives a request from the content service, publishes it to Kafka,
+    and immediately returns an acknowledgment. The learning path generation happens
+    asynchronously via Kafka consumer, and results are published to the response topic.
+    
+    Flow:
+    1. Content service sends request to this endpoint
+    2. This endpoint validates and publishes request to Kafka
+    3. Returns immediate acknowledgment
+    4. Learning path consumer picks up the request
+    5. Generates learning path and publishes response to Kafka
+    6. Content service consumes the response from Kafka
     """
     try:
-        llm_service = get_llm_service()
-        learning_path = await llm_service.agenerate_learning_path(
+        logger.info(f"Received learning path generation request {request.request_id} from content service")
+        
+        settings = get_settings()
+        kafka_client = get_kafka_client()
+        
+        # Create request event
+        request_data = LearningPathRequestData(
+            request_id=request.request_id,
             user_id=request.user_id,
             goal=request.goal,
             current_level=request.current_level,
             preferences=request.preferences,
-            available_time=request.available_time
+            available_time=request.available_time,
+            metadata=request.metadata
         )
-        return learning_path
+        
+        request_event = LearningPathRequestEvent(
+            event_type="learning_path.request",
+            event_data=request_data,
+            user_id=request.user_id,
+            metadata={
+                "source": "content-service",
+                "request_id": request.request_id
+            }
+        )
+        
+        # Publish request to Kafka
+        await kafka_client.publish(
+            topic=settings.KAFKA_LEARNING_PATH_REQUEST_TOPIC,
+            message=request_event.dict(by_alias=True),
+            key=request.request_id
+        )
+        
+        logger.info(
+            f"Learning path generation request {request.request_id} published to Kafka topic: {settings.KAFKA_LEARNING_PATH_REQUEST_TOPIC}"
+        )
+        
+        return ContentServiceLearningPathResponse(
+            status="accepted",
+            request_id=request.request_id,
+            message=f"Learning path generation request accepted and queued for user: {request.user_id}, goal: {request.goal}"
+        )
+        
     except ValueError as e:
-        logger.error(f"Validation error: {e}")
+        logger.error(f"Validation error for request {request.request_id}: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error generating learning path: {e}")
+        logger.error(f"Error accepting learning path generation request {request.request_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
