@@ -5,6 +5,7 @@ LangChain agent for generating personalized learning paths based on student data
 and learning objectives.
 """
 
+from email.mime import message
 import logging
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
@@ -253,9 +254,9 @@ Generate a detailed learning path that will help achieve this goal based on the 
         # Publish to Kafka learning_path topic
         try:
             kafka_client = await self._get_kafka_client()
-            await kafka_client.send(
+            await kafka_client.publish(
                 topic="learning_path",
-                value={
+                message={
                     "user_id": user_id,
                     "learning_goal": goal,
                     "learning_path": learning_path.model_dump(),

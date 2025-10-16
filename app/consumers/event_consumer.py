@@ -156,9 +156,9 @@ class EventConsumer:
 
         kafka_client = get_kafka_client()
 
-        await kafka_client.send(
+        await kafka_client.publish(
             topic="mastery-scores",
-            value={
+            message={
                 "user_id": event.user_id,
                 "mastery_score": mastery_score
             }
