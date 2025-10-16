@@ -2,16 +2,31 @@
 
 import pandas as pd
 import numpy as np
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-import tensorflow as tf
-from tensorflow import keras
 import json
 import os
+
+# Lazy imports for TensorFlow to avoid blocking startup
+# TensorFlow takes a long time to load on Python 3.13, so we defer it
+tf = None
+keras = None
+pad_sequences = None
+
+def _ensure_tf_loaded():
+    """Lazy load TensorFlow and Keras modules."""
+    global tf, keras, pad_sequences
+    if tf is None:
+        import tensorflow as _tf_module
+        from tensorflow import keras as _keras_module
+        from tensorflow.keras.preprocessing.sequence import pad_sequences as _pad_sequences_func
+        globals()['tf'] = _tf_module
+        globals()['keras'] = _keras_module
+        globals()['pad_sequences'] = _pad_sequences_func
 
 # Load skill mapping from JSON file
 skill_mapping_path = os.path.join(os.path.dirname(__file__), 'artifacts', 'skill_mapping.json')
 with open(skill_mapping_path, 'r') as f:
     skill_map = json.load(f)
+
 
 def get_positional_encoding(seq_len, d_model):
     """
@@ -37,209 +52,113 @@ def get_positional_encoding(seq_len, d_model):
     return angle_rads.astype(np.float32)
 
 
-@tf.keras.utils.register_keras_serializable()
-class PositionalEncoding(tf.keras.layers.Layer):
-    """Custom layer for positional encoding."""
+def _create_positional_encoding_class():
+    """Create the PositionalEncoding class - must be called after TensorFlow is loaded."""
+    _ensure_tf_loaded()
     
-    def __init__(self, max_seq_len, d_model, **kwargs):
-        super(PositionalEncoding, self).__init__(**kwargs)
-        self.max_seq_len = max_seq_len
-        self.d_model = d_model
-        self.pos_encoding = tf.constant(
-            get_positional_encoding(max_seq_len, d_model),
-            dtype=tf.float32
-        )
-    
-    def call(self, x):
-        seq_len = tf.shape(x)[1]
-        # Use tf.slice with dynamic seq_len
-        pos_enc_slice = tf.slice(self.pos_encoding, [0, 0], [seq_len, self.d_model])
-        return x + pos_enc_slice
-    
-    def get_config(self):
-        config = super().get_config()
-        config.update({
-            'max_seq_len': self.max_seq_len,
-            'd_model': self.d_model
-        })
-        return config
-
-@tf.function(jit_compile=False)
-def combined_loss(y_true, y_pred):
-    """
-    Simplified loss function compatible with XLA compilation.
-    
-    Args:
-        y_true: True labels [skill_id, correctness] shape (batch, seq_len, 2)
-        y_pred: Predicted probabilities shape (batch, seq_len, num_skills)
-    """
-    # Extract skill IDs and correctness
-    skill_ids = tf.cast(y_true[:, :, 0], tf.int32)
-    correctness = y_true[:, :, 1]
-    
-    # Create mask for valid interactions (skill_id != -1)
-    mask = tf.cast(tf.not_equal(skill_ids, -1), tf.float32)
-    
-    # Clip skill_ids to valid range [0, num_skills-1]
-    num_skills = tf.shape(y_pred)[-1]
-    skill_ids_clipped = tf.clip_by_value(skill_ids, 0, num_skills - 1)
-    
-    # Create one-hot encoding for skill selection
-    batch_size = tf.shape(skill_ids)[0]
-    seq_len = tf.shape(skill_ids)[1]
-    
-    # Gather predictions for the relevant skills
-    # Use batch indices for gathering
-    batch_indices = tf.tile(
-        tf.expand_dims(tf.range(batch_size), 1),
-        [1, seq_len]
-    )
-    seq_indices = tf.tile(
-        tf.expand_dims(tf.range(seq_len), 0),
-        [batch_size, 1]
-    )
-    
-    # Stack indices for gather_nd
-    gather_indices = tf.stack([
-        batch_indices,
-        seq_indices,
-        skill_ids_clipped
-    ], axis=-1)
-    
-    # Gather the relevant predictions
-    relevant_predictions = tf.gather_nd(y_pred, gather_indices)
-    
-    # Compute binary crossentropy
-    epsilon = 1e-7
-    relevant_predictions = tf.clip_by_value(relevant_predictions, epsilon, 1 - epsilon)
-    bce = -(correctness * tf.math.log(relevant_predictions) +
-            (1 - correctness) * tf.math.log(1 - relevant_predictions))
-    
-    # Apply mask and compute mean
-    masked_bce = bce * mask
-    total_loss = tf.reduce_sum(masked_bce) / (tf.reduce_sum(mask) + epsilon)
-    
-    return total_loss
-
-
-def create_loss_function():
-    """Create the loss function wrapper."""
-    def loss_fn(y_true, y_pred):
-        return combined_loss(y_true, y_pred)
-    return loss_fn
-
-
-def original_get_positional_encoding(seq_len, d_model):
-    """
-    Create sinusoidal positional encoding.
-    
-    Args:
-        seq_len: Sequence length
-        d_model: Model dimension
+    @tf.keras.utils.register_keras_serializable()
+    class PositionalEncoding(tf.keras.layers.Layer):
+        """Custom layer for positional encoding."""
         
-    Returns:
-        Positional encoding matrix of shape (seq_len, d_model)
-    """
-    positions = np.arange(seq_len)[:, np.newaxis]
-    dimensions = np.arange(d_model)[np.newaxis, :]
+        def __init__(self, max_seq_len, d_model, **kwargs):
+            super(PositionalEncoding, self).__init__(**kwargs)
+            self.max_seq_len = max_seq_len
+            self.d_model = d_model
+            self.pos_encoding = tf.constant(
+                get_positional_encoding(max_seq_len, d_model),
+                dtype=tf.float32
+            )
+        
+        def call(self, x):
+            seq_len = tf.shape(x)[1]
+            # Use tf.slice with dynamic seq_len
+            pos_enc_slice = tf.slice(self.pos_encoding, [0, 0], [seq_len, self.d_model])
+            return x + pos_enc_slice
+        
+        def get_config(self):
+            config = super().get_config()
+            config.update({
+                'max_seq_len': self.max_seq_len,
+                'd_model': self.d_model
+            })
+            return config
     
-    angle_rates = 1 / np.power(10000, (2 * (dimensions // 2)) / d_model)
-    angle_rads = positions * angle_rates
-    
-    # Apply sin to even indices, cos to odd indices
-    angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
-    angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
-    
-    return angle_rads.astype(np.float32)
+    return PositionalEncoding
 
+# Will be set when TensorFlow is loaded
+PositionalEncoding = None
+combined_loss = None
 
-@tf.keras.utils.register_keras_serializable()
-class PositionalEncoding(tf.keras.layers.Layer):
-    """Custom layer for positional encoding."""
+def _create_combined_loss():
+    """Create combined loss function - must be called after TensorFlow is loaded."""
+    _ensure_tf_loaded()
     
-    def __init__(self, max_seq_len, d_model, **kwargs):
-        super(PositionalEncoding, self).__init__(**kwargs)
-        self.max_seq_len = max_seq_len
-        self.d_model = d_model
-        self.pos_encoding = tf.constant(
-            get_positional_encoding(max_seq_len, d_model),
-            dtype=tf.float32
+    @tf.function(jit_compile=False)
+    def combined_loss_fn(y_true, y_pred):
+        """
+        Simplified loss function compatible with XLA compilation.
+        
+        Args:
+            y_true: True labels [skill_id, correctness] shape (batch, seq_len, 2)
+            y_pred: Predicted probabilities shape (batch, seq_len, num_skills)
+        """
+        # Extract skill IDs and correctness
+        skill_ids = tf.cast(y_true[:, :, 0], tf.int32)
+        correctness = y_true[:, :, 1]
+        
+        # Create mask for valid interactions (skill_id != -1)
+        mask = tf.cast(tf.not_equal(skill_ids, -1), tf.float32)
+        
+        # Clip skill_ids to valid range [0, num_skills-1]
+        num_skills = tf.shape(y_pred)[-1]
+        skill_ids_clipped = tf.clip_by_value(skill_ids, 0, num_skills - 1)
+        
+        # Create one-hot encoding for skill selection
+        batch_size = tf.shape(skill_ids)[0]
+        seq_len = tf.shape(skill_ids)[1]
+        
+        # Gather predictions for the relevant skills
+        # Use batch indices for gathering
+        batch_indices = tf.tile(
+            tf.expand_dims(tf.range(batch_size), 1),
+            [1, seq_len]
         )
+        seq_indices = tf.tile(
+            tf.expand_dims(tf.range(seq_len), 0),
+            [batch_size, 1]
+        )
+        
+        # Stack indices for gather_nd
+        gather_indices = tf.stack([
+            batch_indices,
+            seq_indices,
+            skill_ids_clipped
+        ], axis=-1)
+        
+        # Gather the relevant predictions
+        relevant_predictions = tf.gather_nd(y_pred, gather_indices)
+        
+        # Compute binary crossentropy
+        epsilon = 1e-7
+        relevant_predictions = tf.clip_by_value(relevant_predictions, epsilon, 1 - epsilon)
+        bce = -(correctness * tf.math.log(relevant_predictions) +
+                (1 - correctness) * tf.math.log(1 - relevant_predictions))
+        
+        # Apply mask and compute mean
+        masked_bce = bce * mask
+        total_loss = tf.reduce_sum(masked_bce) / (tf.reduce_sum(mask) + epsilon)
+        
+        return total_loss
     
-    def call(self, x):
-        seq_len = tf.shape(x)[1]
-        # Use tf.slice with dynamic seq_len
-        pos_enc_slice = tf.slice(self.pos_encoding, [0, 0], [seq_len, self.d_model])
-        return x + pos_enc_slice
-    
-    def get_config(self):
-        config = super().get_config()
-        config.update({
-            'max_seq_len': self.max_seq_len,
-            'd_model': self.d_model
-        })
-        return config
-
-@tf.function(jit_compile=False)
-def combined_loss(y_true, y_pred):
-    """
-    Simplified loss function compatible with XLA compilation.
-    
-    Args:
-        y_true: True labels [skill_id, correctness] shape (batch, seq_len, 2)
-        y_pred: Predicted probabilities shape (batch, seq_len, num_skills)
-    """
-    # Extract skill IDs and correctness
-    skill_ids = tf.cast(y_true[:, :, 0], tf.int32)
-    correctness = y_true[:, :, 1]
-    
-    # Create mask for valid interactions (skill_id != -1)
-    mask = tf.cast(tf.not_equal(skill_ids, -1), tf.float32)
-    
-    # Clip skill_ids to valid range [0, num_skills-1]
-    num_skills = tf.shape(y_pred)[-1]
-    skill_ids_clipped = tf.clip_by_value(skill_ids, 0, num_skills - 1)
-    
-    # Create one-hot encoding for skill selection
-    batch_size = tf.shape(skill_ids)[0]
-    seq_len = tf.shape(skill_ids)[1]
-    
-    # Gather predictions for the relevant skills
-    # Use batch indices for gathering
-    batch_indices = tf.tile(
-        tf.expand_dims(tf.range(batch_size), 1),
-        [1, seq_len]
-    )
-    seq_indices = tf.tile(
-        tf.expand_dims(tf.range(seq_len), 0),
-        [batch_size, 1]
-    )
-    
-    # Stack indices for gather_nd
-    gather_indices = tf.stack([
-        batch_indices,
-        seq_indices,
-        skill_ids_clipped
-    ], axis=-1)
-    
-    # Gather the relevant predictions
-    relevant_predictions = tf.gather_nd(y_pred, gather_indices)
-    
-    # Compute binary crossentropy
-    epsilon = 1e-7
-    relevant_predictions = tf.clip_by_value(relevant_predictions, epsilon, 1 - epsilon)
-    bce = -(correctness * tf.math.log(relevant_predictions) +
-            (1 - correctness) * tf.math.log(1 - relevant_predictions))
-    
-    # Apply mask and compute mean
-    masked_bce = bce * mask
-    total_loss = tf.reduce_sum(masked_bce) / (tf.reduce_sum(mask) + epsilon)
-    
-    return total_loss
+    return combined_loss_fn
 
 
 def create_loss_function():
     """Create the loss function wrapper."""
+    global combined_loss
+    if combined_loss is None:
+        combined_loss = _create_combined_loss()
+    
     def loss_fn(y_true, y_pred):
         return combined_loss(y_true, y_pred)
     return loss_fn
@@ -338,6 +257,8 @@ def create_sequences(df, max_seq_len=100):
         y: Targets
         max_len: Sequence length
     """
+    _ensure_tf_loaded()  # Load TensorFlow before using pad_sequences
+    
     # Process single student data directly (no grouping needed)
     if len(df) <= 1:
         raise ValueError("Need at least 2 interactions to create sequences")
@@ -394,6 +315,13 @@ def infer_knowledge(data):
     Returns:
         predictions: Model predictions
     """
+    # Ensure TensorFlow is loaded and initialize classes
+    _ensure_tf_loaded()
+    global PositionalEncoding, combined_loss
+    if PositionalEncoding is None:
+        PositionalEncoding = _create_positional_encoding_class()
+    if combined_loss is None:
+        combined_loss = _create_combined_loss()
 
     custom_objects = {
         'PositionalEncoding': PositionalEncoding,

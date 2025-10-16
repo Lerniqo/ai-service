@@ -50,6 +50,30 @@ class Settings(BaseSettings):
     KAFKA_CLIENT_ID: str = Field(default="ai-service", env="KAFKA_CLIENT_ID")
     KAFKA_CONSUMER_GROUP_ID: str = Field(default="ai-service-events-consumer", env="KAFKA_CONSUMER_GROUP_ID")
     KAFKA_EVENTS_TOPIC: str = Field(default="events", env="KAFKA_EVENTS_TOPIC")
+    KAFKA_QUESTION_REQUEST_TOPIC: str = Field(default="question.request", env="KAFKA_QUESTION_REQUEST_TOPIC")
+    KAFKA_QUESTION_RESPONSE_TOPIC: str = Field(default="question.response", env="KAFKA_QUESTION_RESPONSE_TOPIC")
+    KAFKA_LEARNING_PATH_REQUEST_TOPIC: str = Field(default="learning_path.request", env="KAFKA_LEARNING_PATH_REQUEST_TOPIC")
+    KAFKA_LEARNING_PATH_RESPONSE_TOPIC: str = Field(default="learning_path.response", env="KAFKA_LEARNING_PATH_RESPONSE_TOPIC")
+
+    # LLM configuration (Google Gemini)
+    GOOGLE_API_KEY: Optional[str] = Field(default=None, env="GOOGLE_API_KEY")
+    LLM_MODEL: str = Field(default="gemini-1.5-flash", env="LLM_MODEL")
+    LLM_TEMPERATURE: float = Field(default=0.7, env="LLM_TEMPERATURE")
+    LLM_MAX_TOKENS: int = Field(default=2000, env="LLM_MAX_TOKENS")
+    
+    # Embedding configuration (Google)
+    EMBEDDING_MODEL: str = Field(default="models/embedding-001", env="EMBEDDING_MODEL")
+    EMBEDDING_CHUNK_SIZE: int = Field(default=1000, env="EMBEDDING_CHUNK_SIZE")
+    EMBEDDING_CHUNK_OVERLAP: int = Field(default=200, env="EMBEDDING_CHUNK_OVERLAP")
+    
+    # Vector store configuration
+    VECTOR_STORE_TYPE: str = Field(default="chroma", env="VECTOR_STORE_TYPE")  # chroma or faiss
+    VECTOR_STORE_PATH: str = Field(default="./data/vector_store", env="VECTOR_STORE_PATH")
+    VECTOR_STORE_COLLECTION: str = Field(default="learning_content", env="VECTOR_STORE_COLLECTION")
+    
+    # RAG configuration
+    RAG_TOP_K: int = Field(default=5, env="RAG_TOP_K")
+    RAG_SCORE_THRESHOLD: float = Field(default=0.7, env="RAG_SCORE_THRESHOLD")
 
     @property
     def is_development(self) -> bool:

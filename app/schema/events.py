@@ -3,7 +3,47 @@ from typing import Optional, Dict, Any
 from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.schema.event_data import EventDataBase, QuizAttemptData, VideoWatchData
+from app.schema.event_data import (
+    EventDataBase, 
+    QuizAttemptData, 
+    VideoWatchData,
+    QuestionGenerationRequestData,
+    QuestionGenerationResponseData,
+    LearningPathRequestData,
+    LearningPathResponseData
+)
+
+
+class LearningGoalData(EventDataBase):
+    """Data structure for learning goal."""
+    learning_goal: str = Field(..., alias="learningGoal", description="The learning goal or objective")
+    current_level: Optional[str] = Field(
+        default="beginner",
+        alias="currentLevel",
+        description="Current skill level (beginner, intermediate, advanced)"
+    )
+    preferences: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="User preferences for learning path generation"
+    )
+    available_time: Optional[str] = Field(
+        default="flexible",
+        alias="availableTime",
+        description="Available time for learning (e.g., '2 hours/day', 'weekends only')"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "learningGoal": "Learn Python programming",
+                "currentLevel": "beginner",
+                "preferences": {"learning_style": "visual"},
+                "availableTime": "2 hours per day"
+            }
+        }
+    )
 
 
 class Event(BaseModel):
@@ -142,3 +182,165 @@ class VideoWatchEvent(Event):
             }
         }
     )
+
+
+class LearningGoalEvent(Event):
+    """Specific event schema for learning goal submissions."""
+    event_data: LearningGoalData = Field(
+        ...,
+        alias="eventData",
+        description="Learning goal specific data"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "eventId": "evt_abc123def",
+                "eventType": "LEARNING_GOAL",
+                "eventData": {
+                    "learningGoal": "Learn Python programming",
+                },
+                "userId": "user_789",
+                "metadata": {
+                    "source": "web_app",
+                    "version": "1.0.0"
+                }
+            }
+        }
+    )
+
+
+class QuestionGenerationRequestEvent(Event):
+    """Event schema for question generation requests."""
+    event_data: QuestionGenerationRequestData = Field(
+        ...,
+        alias="eventData",
+        description="Question generation request data"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "eventId": "evt_qgen_request_123",
+                "eventType": "question.generation.request",
+                "eventData": {
+                    "request_id": "req-123",
+                    "topic": "Python Loops",
+                    "num_questions": 5,
+                    "question_types": ["multiple_choice"],
+                    "difficulty": "medium",
+                    "content_id": "content-456",
+                    "user_id": "user-789"
+                },
+                "userId": "content-service",
+                "metadata": {
+                    "source": "content-service",
+                    "version": "1.0.0"
+                }
+            }
+        }
+    )
+
+
+class QuestionGenerationResponseEvent(Event):
+    """Event schema for question generation responses."""
+    event_data: QuestionGenerationResponseData = Field(
+        ...,
+        alias="eventData",
+        description="Question generation response data"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "eventId": "evt_qgen_response_123",
+                "eventType": "question.generation.response",
+                "eventData": {
+                    "request_id": "req-123",
+                    "status": "completed",
+                    "topic": "Python Loops",
+                    "total_questions": 5,
+                    "questions": [],
+                    "content_id": "content-456",
+                    "user_id": "user-789"
+                },
+                "userId": "ai-service",
+                "metadata": {
+                    "source": "ai-service",
+                    "version": "1.0.0"
+                }
+            }
+        }
+    )
+
+
+class LearningPathRequestEvent(Event):
+    """Event schema for learning path generation requests."""
+    event_data: LearningPathRequestData = Field(
+        ...,
+        alias="eventData",
+        description="Learning path request data"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "eventId": "evt_lp_request_123",
+                "eventType": "learning_path.request",
+                "eventData": {
+                    "request_id": "lp-req-123",
+                    "user_id": "user-789",
+                    "goal": "Learn Python programming",
+                    "current_level": "beginner",
+                    "preferences": {"learning_style": "visual"},
+                    "available_time": "2 hours per day"
+                },
+                "userId": "content-service",
+                "metadata": {
+                    "source": "content-service",
+                    "version": "1.0.0"
+                }
+            }
+        }
+    )
+
+
+class LearningPathResponseEvent(Event):
+    """Event schema for learning path generation responses."""
+    event_data: LearningPathResponseData = Field(
+        ...,
+        alias="eventData",
+        description="Learning path response data"
+    )
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "eventId": "evt_lp_response_123",
+                "eventType": "learning_path.response",
+                "eventData": {
+                    "request_id": "lp-req-123",
+                    "status": "completed",
+                    "user_id": "user-789",
+                    "goal": "Learn Python programming",
+                    "learning_path": {}
+                },
+                "userId": "ai-service",
+                "metadata": {
+                    "source": "ai-service",
+                    "version": "1.0.0"
+                }
+            }
+        }
+    )
+
