@@ -28,6 +28,9 @@ RUN pip install --upgrade pip && \
 COPY app/ /app/app/
 COPY run.py /app/
 
+# Create data directory for vector store
+RUN mkdir -p /app/data/vector_store /app/logs
+
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
@@ -35,11 +38,11 @@ RUN useradd -m -u 1000 appuser && \
 # Switch to non-root user
 USER appuser
 
-# Expose port
+# Expose port (default to 3000, can be overridden by env var)
 EXPOSE 3000
 
 # Health check using Python's built-in HTTP client
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:3000/health/ping', timeout=2)" || exit 1
 
 # Default command runs the FastAPI application
