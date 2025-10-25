@@ -51,6 +51,29 @@ class QuestionGenerationRequest(BaseModel):
         description="Question types (multiple_choice, true_false, short_answer, essay)"
     )
     difficulty: str = Field(default="medium", description="Difficulty level (easy, medium, hard)")
+    # Randomness and creativity parameters
+    creativity_mode: Optional[str] = Field(
+        default=None, 
+        description="Creativity mode: 'conservative', 'balanced', 'creative', 'highly_creative'"
+    )
+    temperature: Optional[float] = Field(
+        default=None, 
+        ge=0.0, 
+        le=1.0, 
+        description="Temperature for randomness (0.0-1.0). Higher = more creative"
+    )
+    top_k: Optional[int] = Field(
+        default=None, 
+        ge=1, 
+        le=100, 
+        description="Top K sampling parameter. Lower = more focused"
+    )
+    top_p: Optional[float] = Field(
+        default=None, 
+        ge=0.0, 
+        le=1.0, 
+        description="Top P (nucleus) sampling parameter. Lower = more focused"
+    )
 
 
 class ContentServiceQuestionRequest(BaseModel):
@@ -66,6 +89,29 @@ class ContentServiceQuestionRequest(BaseModel):
     content_id: Optional[str] = Field(None, description="ID of the content this relates to")
     user_id: Optional[str] = Field(None, description="User ID if personalized questions")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+    # Randomness and creativity parameters
+    creativity_mode: Optional[str] = Field(
+        default=None, 
+        description="Creativity mode: 'conservative', 'balanced', 'creative', 'highly_creative'"
+    )
+    temperature: Optional[float] = Field(
+        default=None, 
+        ge=0.0, 
+        le=1.0, 
+        description="Temperature for randomness (0.0-1.0). Higher = more creative"
+    )
+    top_k: Optional[int] = Field(
+        default=None, 
+        ge=1, 
+        le=100, 
+        description="Top K sampling parameter. Lower = more focused"
+    )
+    top_p: Optional[float] = Field(
+        default=None, 
+        ge=0.0, 
+        le=1.0, 
+        description="Top P (nucleus) sampling parameter. Lower = more focused"
+    )
 
 
 class ContentServiceQuestionResponse(BaseModel):
@@ -230,15 +276,34 @@ async def generate_learning_path(request: ContentServiceLearningPathRequest):
 @router.post("/questions/generate", response_model=QuestionSet)
 async def generate_questions(request: QuestionGenerationRequest):
     """
-    Generate educational questions for a topic.
+    Generate educational questions for a topic with configurable randomness parameters.
+    
+    You can control the creativity and randomness of generated questions using:
+    - creativity_mode: Predefined modes (conservative, balanced, creative, highly_creative)
+    - temperature: Fine-grained control over randomness (0.0-1.0)
+    - top_k: Vocabulary limitation for more focused responses
+    - top_p: Nucleus sampling for balanced creativity
     """
     try:
         llm_service = get_llm_service()
+        
+        # Build generation parameters
+        generation_kwargs = {}
+        if request.creativity_mode:
+            generation_kwargs['creativity_mode'] = request.creativity_mode
+        if request.temperature is not None:
+            generation_kwargs['temperature'] = request.temperature
+        if request.top_k is not None:
+            generation_kwargs['top_k'] = request.top_k
+        if request.top_p is not None:
+            generation_kwargs['top_p'] = request.top_p
+        
         question_set = await llm_service.agenerate_questions(
             topic=request.topic,
             num_questions=request.num_questions,
             question_types=request.question_types,
-            difficulty=request.difficulty
+            difficulty=request.difficulty,
+            **generation_kwargs
         )
         return question_set
     except ValueError as e:

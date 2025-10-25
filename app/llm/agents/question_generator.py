@@ -121,8 +121,19 @@ class QuestionSet(BaseModel):
 class QuestionGeneratorAgent:
     """Agent for generating educational questions."""
     
-    def __init__(self):
-        """Initialize the question generator agent."""
+    def __init__(self, 
+                 temperature: float = 0.7,
+                 top_k: int = 40,
+                 top_p: float = 0.95,
+                 max_output_tokens: Optional[int] = None):
+        """Initialize the question generator agent.
+        
+        Args:
+            temperature: Controls randomness (0.0-1.0). Higher = more creative
+            top_k: Limits vocabulary to top K tokens. Lower = more focused
+            top_p: Nucleus sampling parameter. Lower = more focused
+            max_output_tokens: Maximum tokens in response
+        """
         _ensure_langchain_loaded()  # Ensure langchain is loaded
         
         self.settings = get_settings()
@@ -131,10 +142,20 @@ class QuestionGeneratorAgent:
         if not self.settings.GOOGLE_API_KEY:
             raise ValueError("GOOGLE_API_KEY not configured")
         
+        # Store generation parameters for different modes
+        self.generation_params = {
+            'temperature': temperature,
+            'top_k': top_k,
+            'top_p': top_p,
+            'max_output_tokens': max_output_tokens or self.settings.LLM_MAX_TOKENS
+        }
+        
         self.llm = ChatGoogleGenerativeAI(
             model=self.settings.LLM_MODEL,
-            temperature=0.6,  # Higher temperature for more creative questions
-            max_output_tokens=self.settings.LLM_MAX_TOKENS,
+            temperature=self.generation_params['temperature'],
+            top_k=self.generation_params['top_k'],
+            top_p=self.generation_params['top_p'],
+            max_output_tokens=self.generation_params['max_output_tokens'],
             google_api_key=self.settings.GOOGLE_API_KEY
         )
         
@@ -144,6 +165,7 @@ class QuestionGeneratorAgent:
         self.prompt = ChatPromptTemplate.from_messages([
             ("system", """You are an expert educational content creator specializing in assessment design.
 Your task is to generate high-quality, pedagogically sound questions that effectively assess student understanding.
+Be creative and varied in your question formulation while maintaining educational rigor.
 
 Follow these principles when creating questions:
 1. Ensure questions are clear, unambiguous, and properly formatted
@@ -153,6 +175,16 @@ Follow these principles when creating questions:
 5. For all types: Provide thorough explanations that teach, not just verify
 6. Cover different aspects of the topic comprehensively
 7. Avoid trick questions or unnecessarily complex wording
+8. Vary question phrasing, structure, and approach to maintain engagement
+9. Use diverse scenarios, examples, and contexts when appropriate
+10. Balance between different cognitive levels (remember, understand, apply, analyze, evaluate, create)
+
+Creative Guidelines:
+- Use varied question stems and formats
+- Incorporate different perspectives and real-world applications
+- Mix abstract concepts with concrete examples
+- Vary the complexity and depth of explanations
+- Create questions that spark curiosity and deeper thinking
 
 Use the following context from the knowledge base to inform your questions:
 {context}
@@ -168,7 +200,72 @@ Difficulty Level: {difficulty}
 Create a comprehensive set of questions that effectively assess understanding of this topic.""")
         ])
         
-        logger.info("Question Generator Agent initialized")
+        logger.info(f"Question Generator Agent initialized with params: {self.generation_params}")
+    
+    def update_generation_params(self, **kwargs):
+        """Update generation parameters and reinitialize LLM if needed.
+        
+        Args:
+            temperature: Controls randomness (0.0-1.0)
+            top_k: Limits vocabulary to top K tokens
+            top_p: Nucleus sampling parameter
+            max_output_tokens: Maximum tokens in response
+        """
+        updated = False
+        for param, value in kwargs.items():
+            if param in self.generation_params and self.generation_params[param] != value:
+                self.generation_params[param] = value
+                updated = True
+        
+        if updated:
+            logger.info(f"Updating generation params: {self.generation_params}")
+            self.llm = ChatGoogleGenerativeAI(
+                model=self.settings.LLM_MODEL,
+                temperature=self.generation_params['temperature'],
+                top_k=self.generation_params['top_k'],
+                top_p=self.generation_params['top_p'],
+                max_output_tokens=self.generation_params['max_output_tokens'],
+                google_api_key=self.settings.GOOGLE_API_KEY
+            )
+    
+    def set_creativity_mode(self, mode: str = "balanced"):
+        """Set predefined creativity modes for question generation.
+        
+        Args:
+            mode: One of 'conservative', 'balanced', 'creative', 'highly_creative'
+        """
+        modes = {
+            'conservative': {
+                'temperature': 0.3,
+                'top_k': 20,
+                'top_p': 0.8
+            },
+            'balanced': {
+                'temperature': 0.7,
+                'top_k': 40,
+                'top_p': 0.95
+            },
+            'creative': {
+                'temperature': 0.9,
+                'top_k': 60,
+                'top_p': 0.98
+            },
+            'highly_creative': {
+                'temperature': 1.0,
+                'top_k': 80,
+                'top_p': 1.0
+            }
+        }
+        
+        if mode not in modes:
+            raise ValueError(f"Unknown mode: {mode}. Available modes: {list(modes.keys())}")
+        
+        self.update_generation_params(**modes[mode])
+        logger.info(f"Set creativity mode to: {mode}")
+    
+    def get_generation_params(self) -> Dict[str, Any]:
+        """Get current generation parameters."""
+        return self.generation_params.copy()
     
     def generate_questions(
         self,
@@ -176,6 +273,8 @@ Create a comprehensive set of questions that effectively assess understanding of
         num_questions: int = 5,
         question_types: Optional[List[str]] = None,
         difficulty: str = "medium",
+        creativity_mode: Optional[str] = None,
+        **generation_kwargs
     ) -> QuestionSet:
         """
         Generate educational questions for a topic.
@@ -185,15 +284,28 @@ Create a comprehensive set of questions that effectively assess understanding of
             num_questions: Number of questions to generate
             question_types: List of question types (default: ["multiple_choice"])
             difficulty: Difficulty level (easy, medium, hard)
+            creativity_mode: Predefined creativity mode ('conservative', 'balanced', 'creative', 'highly_creative')
+            **generation_kwargs: Additional generation parameters (temperature, top_k, top_p, max_output_tokens)
             
         Returns:
             QuestionSet object with generated questions
         """
         logger.info(f"Generating {num_questions} questions for topic: {topic}")
         
+        # Apply creativity mode if specified
+        if creativity_mode:
+            self.set_creativity_mode(creativity_mode)
+        
+        # Apply any additional generation parameters
+        if generation_kwargs:
+            self.update_generation_params(**generation_kwargs)
+        
         # Default values
         if question_types is None:
             question_types = ["multiple_choice"]
+        
+        # Log current generation parameters
+        logger.info(f"Using generation parameters: {self.generation_params}")
         
         # Get relevant context from RAG
         try:
@@ -231,6 +343,8 @@ Create a comprehensive set of questions that effectively assess understanding of
         num_questions: int = 5,
         question_types: Optional[List[str]] = None,
         difficulty: str = "medium",
+        creativity_mode: Optional[str] = None,
+        **generation_kwargs
     ) -> QuestionSet:
         """
         Async version of generate_questions.
@@ -240,15 +354,28 @@ Create a comprehensive set of questions that effectively assess understanding of
             num_questions: Number of questions to generate
             question_types: List of question types
             difficulty: Difficulty level
+            creativity_mode: Predefined creativity mode
+            **generation_kwargs: Additional generation parameters
             
         Returns:
             QuestionSet object with generated questions
         """
         logger.info(f"Async generating {num_questions} questions for topic: {topic}")
         
+        # Apply creativity mode if specified
+        if creativity_mode:
+            self.set_creativity_mode(creativity_mode)
+        
+        # Apply any additional generation parameters
+        if generation_kwargs:
+            self.update_generation_params(**generation_kwargs)
+        
         # Default values
         if question_types is None:
             question_types = ["multiple_choice"]
+        
+        # Log current generation parameters
+        logger.info(f"Using generation parameters: {self.generation_params}")
         
         # Get relevant context from RAG
         try:
