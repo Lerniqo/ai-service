@@ -133,7 +133,7 @@ class QuestionGeneratorAgent:
         
         self.llm = ChatGoogleGenerativeAI(
             model=self.settings.LLM_MODEL,
-            temperature=0.8,  # Higher temperature for more creative questions
+            temperature=0.6,  # Higher temperature for more creative questions
             max_output_tokens=self.settings.LLM_MAX_TOKENS,
             google_api_key=self.settings.GOOGLE_API_KEY
         )
