@@ -1,6 +1,6 @@
 """Base event data schemas."""
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -113,6 +113,161 @@ class VideoWatchData(EventDataBase):
                 "totalDuration": 300,
                 "completed": False,
                 "watchPercentage": 40
+            }
+        }
+    )
+
+
+class QuestionGenerationRequestData(EventDataBase):
+    """Schema for question generation request event data."""
+    request_id: str = Field(..., description="Unique identifier for this request")
+    topic: str = Field(..., description="Topic to generate questions about")
+    num_questions: int = Field(default=5, ge=1, le=50, description="Number of questions")
+    question_types: Optional[List[str]] = Field(
+        default=None,
+        description="Question types (multiple_choice, true_false, short_answer, essay)"
+    )
+    difficulty: str = Field(default="medium", description="Difficulty level (easy, medium, hard)")
+    content_id: Optional[str] = Field(None, description="ID of the content this relates to")
+    user_id: Optional[str] = Field(None, description="User ID if personalized questions")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")
+
+    @field_validator('difficulty')
+    @classmethod
+    def validate_difficulty(cls, v: str) -> str:
+        """Validate that difficulty is one of the allowed values."""
+        allowed_difficulties = {'easy', 'medium', 'hard'}
+        if v.lower() not in allowed_difficulties:
+            raise ValueError(f"Difficulty must be one of {allowed_difficulties}, got '{v}'")
+        return v.lower()
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "created_at": "2025-10-15T10:00:00Z",
+                "updated_at": "2025-10-15T10:00:00Z",
+                "request_id": "req-123",
+                "topic": "Python Loops",
+                "num_questions": 5,
+                "question_types": ["multiple_choice"],
+                "difficulty": "medium",
+                "content_id": "content-456",
+                "user_id": "user-789"
+            }
+        }
+    )
+
+
+class QuestionGenerationResponseData(EventDataBase):
+    """Schema for question generation response event data."""
+    request_id: str = Field(..., description="The request identifier this response belongs to")
+    status: str = Field(..., description="Status: completed, failed")
+    topic: Optional[str] = Field(None, description="Topic of generated questions")
+    total_questions: Optional[int] = Field(None, description="Total number of questions generated")
+    questions: Optional[List[Dict[str, Any]]] = Field(None, description="List of generated questions")
+    content_id: Optional[str] = Field(None, description="ID of the content this relates to")
+    user_id: Optional[str] = Field(None, description="User ID if personalized questions")
+    error: Optional[str] = Field(None, description="Error message if status is failed")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")
+
+    @field_validator('status')
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        """Validate that status is one of the allowed values."""
+        allowed_statuses = {'completed', 'failed'}
+        if v.lower() not in allowed_statuses:
+            raise ValueError(f"Status must be one of {allowed_statuses}, got '{v}'")
+        return v.lower()
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "created_at": "2025-10-15T10:00:00Z",
+                "updated_at": "2025-10-15T10:00:00Z",
+                "request_id": "req-123",
+                "status": "completed",
+                "topic": "Python Loops",
+                "total_questions": 5,
+                "questions": [],
+                "content_id": "content-456",
+                "user_id": "user-789"
+            }
+        }
+    )
+
+
+class LearningPathRequestData(EventDataBase):
+    """Schema for learning path generation request event data."""
+    request_id: str = Field(..., description="Unique identifier for this request")
+    user_id: str = Field(..., description="User ID requesting the learning path")
+    goal: str = Field(..., description="Learning goal or objective")
+    current_level: str = Field(default="beginner", description="Current knowledge level")
+    preferences: Optional[Dict[str, Any]] = Field(None, description="Learning preferences")
+    available_time: str = Field(default="flexible", description="Available time for learning")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")
+
+    @field_validator('current_level')
+    @classmethod
+    def validate_current_level(cls, v: str) -> str:
+        """Validate that current_level is one of the allowed values."""
+        allowed_levels = {'beginner', 'intermediate', 'advanced'}
+        if v.lower() not in allowed_levels:
+            raise ValueError(f"Current level must be one of {allowed_levels}, got '{v}'")
+        return v.lower()
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "created_at": "2025-10-16T10:00:00Z",
+                "updated_at": "2025-10-16T10:00:00Z",
+                "request_id": "lp-req-123",
+                "user_id": "user-789",
+                "goal": "Learn Python programming",
+                "current_level": "beginner",
+                "preferences": {"learning_style": "visual"},
+                "available_time": "2 hours per day"
+            }
+        }
+    )
+
+
+class LearningPathResponseData(EventDataBase):
+    """Schema for learning path generation response event data."""
+    request_id: str = Field(..., description="The request identifier this response belongs to")
+    status: str = Field(..., description="Status: completed, failed")
+    user_id: str = Field(..., description="User ID this learning path is for")
+    goal: Optional[str] = Field(None, description="Learning goal")
+    learning_path: Optional[Dict[str, Any]] = Field(None, description="Generated learning path data")
+    error: Optional[str] = Field(None, description="Error message if status is failed")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")
+
+    @field_validator('status')
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        """Validate that status is one of the allowed values."""
+        allowed_statuses = {'completed', 'failed'}
+        if v.lower() not in allowed_statuses:
+            raise ValueError(f"Status must be one of {allowed_statuses}, got '{v}'")
+        return v.lower()
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        json_schema_extra={
+            "example": {
+                "created_at": "2025-10-16T10:00:00Z",
+                "updated_at": "2025-10-16T10:00:00Z",
+                "request_id": "lp-req-123",
+                "status": "completed",
+                "user_id": "user-789",
+                "goal": "Learn Python programming",
+                "learning_path": {}
             }
         }
     )

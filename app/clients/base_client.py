@@ -137,6 +137,42 @@ class BaseClient:
             return resp.json()
         return resp.text
 
+    async def _post(self, path: str, *, json: Optional[dict[str, Any]] = None, headers: Optional[dict[str, str]] = None) -> Any:
+        """Perform a POST request and return JSON body.
+
+        Args:
+            path: Either an absolute URL or path relative to base_url.
+            json: Optional JSON body to send.
+            headers: Optional headers to include in the request.
+        Raises:
+            ServiceClientError on network issues or non-2xx status.
+        """
+        client = await self._ensure_client()
+        # Allow absolute URLs (useful for redirects or full endpoints)
+        url = path if path.startswith("http://") or path.startswith("https://") else path
+        try:
+            resp = await client.post(url, json=json, headers=headers)
+        except httpx.RequestError as e:  # network / timeout
+            raise ServiceClientError(f"Network error calling service: {e}") from e
+
+        if resp.status_code // 100 != 2:
+            # Attempt to parse json body for more diagnostics
+            error_payload: Any | None
+            try:
+                error_payload = resp.json()
+            except Exception:  # pragma: no cover - fallback
+                error_payload = resp.text
+            raise ServiceClientError(
+                f"Service responded with HTTP {resp.status_code} at {resp.request.method} {resp.request.url}",
+                status_code=resp.status_code,
+                payload=error_payload,
+            )
+        # Return parsed JSON (or raw text if no JSON)
+        content_type = resp.headers.get("content-type", "")
+        if "json" in content_type:
+            return resp.json()
+        return resp.text
+
     # Convenience property (read-only)
     @property
     def base_url(self) -> str:
